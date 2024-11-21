@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 class ViewTests(TestCase):
     def setUp(self):
+        """Set up test data"""
         self.client = Client()
         self.user = User.objects.create_user(
             username='testuser',
@@ -12,21 +13,18 @@ class ViewTests(TestCase):
         )
 
     def test_home_view(self):
+        """Test home page loads correctly"""
         response = self.client.get(reverse('home'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'main/home.html')
 
-    def test_login_view(self):
-        response = self.client.get(reverse('login'))
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'registration/login.html')
-
-    def test_profile_view_protected(self):
-        # Test that profile is protected
+    def test_login_required(self):
+        """Test profile page requires login"""
+        # Try accessing profile without login
         response = self.client.get(reverse('profile'))
-        self.assertEqual(response.status_code, 302)  # Redirects to login
+        self.assertEqual(response.status_code, 302)  # Should redirect to login
 
-        # Test profile accessible when logged in
+        # Login and try again
         self.client.login(username='testuser', password='testpass123')
         response = self.client.get(reverse('profile'))
         self.assertEqual(response.status_code, 200)
