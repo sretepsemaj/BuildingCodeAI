@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+    <h2>Your Profile</h2>
+    <div class="profile-info">
+        <p><strong>Username:</strong> {{ user.username }}</p>
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>Date Joined:</strong> {{ user.date_joined|date:"F j, Y" }}</p>
+    </div>
+    <div class="profile-actions">
+        <a href="{% url 'password_change' %}" class="button">Change Password</a>
+    </div>
+{% endblock %}

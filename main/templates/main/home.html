@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+    <h1>Welcome to BuildinCode AI</h1>
+    {% if user.is_authenticated %}
+        <div class="welcome-message">
+            <h2>Welcome {{ user.username }}!</h2>
+            <p>You are now logged in and can access all features.</p>
+            <a href="{% url 'profile' %}" class="button">View Your Profile</a>
+        </div>
+    {% else %}
+        <div class="welcome-message">
+            <h2>Welcome Guest!</h2>
+            <p>Please log in or register to access all features.</p>
+        </div>
+    {% endif %}
+{% endblock %}

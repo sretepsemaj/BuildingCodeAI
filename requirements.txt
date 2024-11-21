@@ -1,0 +1,32 @@
+# Core Django
+Django>=5.0
+asgiref==3.7.2
+sqlparse==0.4.4
+tzdata==2024.1
+
+# Environment and Configuration
+python-dotenv>=1.0.0
+
+# Forms and UI
+django-crispy-forms>=2.1
+crispy-bootstrap5>=2023.10
+
+# Development Tools
+django-debug-toolbar>=4.2.0
+flake8>=7.0.0
+black>=24.1.0
+isort>=5.13.0
+pre-commit>=3.6.0
+
+# Image Processing
+Pillow>=10.1.0
+
+# Production Server
+gunicorn>=21.2.0
+whitenoise>=6.6.0
+
+# Security
+django-cors-headers>=4.3.1
+django-csp>=3.7
+django-redis>=5.4.0
+psycopg2-binary>=2.9.9  # For PostgreSQL support
