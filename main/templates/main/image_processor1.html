@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Account Home{% endblock %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h2>Welcome, {{ user.username }}!</h2>
+        
+        <div class="profile-info mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Your Profile</h3>
+                    <p><strong>Email:</strong> {{ user.email }}</p>
+                    <p><strong>Member since:</strong> {{ user.date_joined|date:"F j, Y" }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="image-analysis-options mt-4">
+            <h3>Image Analysis Tools</h3>
+            <div class="row mt-3">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="card-title">GPT-4 Vision Analysis</h4>
+                            <p class="card-text">Analyze images using OpenAI's GPT-4 Vision model for detailed insights and descriptions.</p>
+                            <a href="{% url 'image_processor1' %}" class="btn btn-primary">Use GPT-4 Vision</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h4 class="card-title">Standard Image Analysis</h4>
+                            <p class="card-text">Process images using our standard image analysis tools for basic information extraction.</p>
+                            <a href="{% url 'image_processor' %}" class="btn btn-secondary">Use Standard Analysis</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="account-actions mt-4">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Account Management</h3>
+                    <div class="button-group">
+                        <a href="{% url 'password_change' %}" class="btn btn-outline-primary">Change Password</a>
+                        <a href="{% url 'logout' %}" class="btn btn-outline-danger">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .card {
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        .btn {
+            padding: 8px 20px;
+            border-radius: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border: none;
+        }
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        .card-title {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+        }
+        .card-text {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+{% endblock %}

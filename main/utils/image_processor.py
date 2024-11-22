@@ -8,6 +8,7 @@ import tempfile
 from PIL import Image
 import io
 from typing import List, Dict
+from openai import OpenAI as OpenAIClient
 
 class LlamaImageProcessor:
     def __init__(self):
@@ -21,17 +22,83 @@ class LlamaImageProcessor:
         # Initialize LlamaParse
         self.parser = LlamaParse(
             api_key=self.api_key,
-            result_type="markdown"  # "markdown" and "text" are available
+            result_type="markdown"
         )
         
-        # Initialize OpenAI for querying (if OPENAI_API_KEY is available)
+        # Initialize OpenAI for querying
         self.openai_api_key = os.getenv('MYSK_API_KEY')
         if self.openai_api_key:
             self.llm = OpenAI(api_key=self.openai_api_key)
+            self.vision_client = OpenAIClient(api_key=self.openai_api_key)
         else:
             self.llm = None
-            print("Warning: MYSK_API_KEY not found, querying will not be available")
-    
+            self.vision_client = None
+            print("Warning: MYSK_API_KEY not found, advanced image analysis will not be available")
+
+    def encode_image(self, image_path: str) -> str:
+        """Encode image to base64 for API submission"""
+        try:
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+        except Exception as e:
+            raise Exception(f"Error encoding image: {str(e)}")
+
+    def analyze_with_gpt4_vision(self, image_path: str) -> dict:
+        """Analyze image using GPT-4 Vision API"""
+        try:
+            if not self.vision_client:
+                return {
+                    'success': False,
+                    'message': 'GPT-4 Vision not configured (missing API key)',
+                    'analysis': ''
+                }
+
+            if not os.path.exists(image_path):
+                return {
+                    'success': False,
+                    'message': f'Image file not found: {image_path}',
+                    'analysis': ''
+                }
+
+            # Encode the image
+            base64_image = self.encode_image(image_path)
+            
+            # Create the GPT-4 Vision request
+            response = self.vision_client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Please analyze this image in detail. If it's a graph or chart, describe its type, axes, trends, and key data points. If it contains text, extract and organize it. Include any relevant numerical values and relationships shown."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=1000
+            )
+            
+            return {
+                'success': True,
+                'message': 'Image analyzed successfully with GPT-4 Vision',
+                'analysis': response.choices[0].message.content
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'Error analyzing image with GPT-4 Vision: {str(e)}',
+                'analysis': ''
+            }
+
     def process_image(self, image_path: str) -> dict:
         """Process a single image using LlamaParse"""
         try:
@@ -157,5 +224,5 @@ class LlamaImageProcessor:
 # Example usage:
 if __name__ == "__main__":
     processor = LlamaImageProcessor()
-    png_directory = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images"
+    png_directory = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images/png_files"
     results = processor.process_directory(png_directory)

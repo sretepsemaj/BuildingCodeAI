@@ -3,8 +3,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.shortcuts import redirect, render
-import os
 from django.conf import settings
+import os
 from datetime import datetime
 
 def home(request):
@@ -48,33 +48,80 @@ def register(request):
 
 @login_required
 def profile(request):
-    return render(request, "main/profile.html")
+    return render(request, "main/image_processor1.html")
 
 
 @login_required
 def image_processor(request):
-    from .utils.image_processor import LlamaImageProcessor
+    from .utils.image_processor1 import ImageProcessor
     
     try:
         # Initialize the processor
-        processor = LlamaImageProcessor()
+        processor = ImageProcessor()
         
         # Use the static images directory
-        png_directory = os.path.join(settings.BASE_DIR, 'main', 'static', 'images')
+        png_directory = os.path.join(settings.BASE_DIR, 'main', 'static', 'images', 'png_files')
+        
+        # Ensure the directory exists
+        if not os.path.exists(png_directory):
+            os.makedirs(png_directory)
         
         # Process all PNG files in the directory
         response = processor.process_directory(png_directory)
         
+        # Add timestamp to the response
+        response['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
         return render(request, 'main/image_processor.html', {
-            'response': response
+            'response': response,
+            'png_directory': png_directory.replace(str(settings.BASE_DIR), '').lstrip('/')
         })
     except Exception as e:
         return render(request, 'main/image_processor.html', {
             'response': {
                 'success': False,
                 'message': f'Error processing images: {str(e)}',
-                'results': []
-            }
+                'results': [],
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            },
+            'png_directory': png_directory.replace(str(settings.BASE_DIR), '').lstrip('/')
+        })
+
+
+@login_required
+def image_processor1(request):
+    from .utils.image_processor1 import OpenAIImageProcessor
+    
+    try:
+        # Initialize the processor
+        processor = OpenAIImageProcessor()
+        
+        # Use the static images directory
+        png_directory = os.path.join(settings.BASE_DIR, 'main', 'static', 'images', 'png_files')
+        
+        # Ensure the directory exists
+        if not os.path.exists(png_directory):
+            os.makedirs(png_directory)
+        
+        # Process all PNG files in the directory
+        response = processor.process_directory(png_directory)
+        
+        # Add timestamp to the response
+        response['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        return render(request, 'main/image_processor.html', {
+            'response': response,
+            'png_directory': png_directory.replace(str(settings.BASE_DIR), '').lstrip('/')
+        })
+    except Exception as e:
+        return render(request, 'main/image_processor.html', {
+            'response': {
+                'success': False,
+                'message': f'Error processing images: {str(e)}',
+                'results': [],
+                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            },
+            'png_directory': png_directory.replace(str(settings.BASE_DIR), '').lstrip('/')
         })
 
 
