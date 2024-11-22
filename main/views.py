@@ -3,7 +3,9 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.shortcuts import redirect, render
-
+import os
+from django.conf import settings
+from datetime import datetime
 
 def home(request):
     return render(request, "main/home.html")
@@ -47,6 +49,33 @@ def register(request):
 @login_required
 def profile(request):
     return render(request, "main/profile.html")
+
+
+@login_required
+def image_processor(request):
+    from .utils.image_processor import LlamaImageProcessor
+    
+    try:
+        # Initialize the processor
+        processor = LlamaImageProcessor()
+        
+        # Use the static images directory
+        png_directory = os.path.join(settings.BASE_DIR, 'main', 'static', 'images')
+        
+        # Process all PNG files in the directory
+        response = processor.process_directory(png_directory)
+        
+        return render(request, 'main/image_processor.html', {
+            'response': response
+        })
+    except Exception as e:
+        return render(request, 'main/image_processor.html', {
+            'response': {
+                'success': False,
+                'message': f'Error processing images: {str(e)}',
+                'results': []
+            }
+        })
 
 
 def logout_view(request):

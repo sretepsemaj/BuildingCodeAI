@@ -8,12 +8,31 @@
         <div class="welcome-message">
             <h2>Welcome {{ user.username }}!</h2>
             <p>You are now logged in and can access all features.</p>
-            <a href="{% url 'profile' %}" class="button">View Your Profile</a>
+            <div class="d-grid gap-3">
+                <a href="{% url 'profile' %}" class="btn btn-primary btn-lg">View Your Profile</a>
+                <a href="{% url 'image_processor' %}" class="btn btn-success btn-lg">
+                    <i class="fas fa-image me-2"></i>Process Building Code Images
+                </a>
+            </div>
         </div>
     {% else %}
         <div class="welcome-message">
             <h2>Welcome Guest!</h2>
-            <p>Please log in or register to access all features.</p>
+            <p>Please log in or register to access our advanced features, including:</p>
+            <ul class="list-group mt-3">
+                <li class="list-group-item">
+                    <i class="fas fa-image text-success me-2"></i>
+                    Building Code Image Processing
+                </li>
+                <li class="list-group-item">
+                    <i class="fas fa-user text-primary me-2"></i>
+                    Personalized Profile
+                </li>
+            </ul>
+            <div class="d-grid gap-2 mt-4">
+                <a href="{% url 'login' %}" class="btn btn-primary btn-lg">Log In</a>
+                <a href="{% url 'register' %}" class="btn btn-outline-primary btn-lg">Register</a>
+            </div>
         </div>
     {% endif %}
 {% endblock %}
