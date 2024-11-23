@@ -31,7 +31,7 @@ class GroqImageProcessor:
         logger.info("GroqImageProcessor initialized successfully")
 
     def preprocess_image(self, image_path: str) -> bytes:
-        """Preprocess image to reduce size."""
+        """Preprocess image while maintaining quality for table recognition."""
         logger.info(f"Preprocessing image: {image_path}")
         
         # Open and convert image to RGB (removing alpha channel if present)
@@ -47,24 +47,16 @@ class GroqImageProcessor:
                 img = img.convert('RGB')
             
             # Calculate new size while maintaining aspect ratio
-            max_size = 200  
+            max_size = 800  
             ratio = min(max_size/img.width, max_size/img.height)
             new_size = (int(img.width * ratio), int(img.height * ratio))
             
-            # Resize image
+            # Resize image using high-quality resampling
             img = img.resize(new_size, Image.Resampling.LANCZOS)
             
-            # Convert to grayscale
-            img = img.convert('L')
-            
-            # Increase contrast to make text more readable at low quality
-            from PIL import ImageEnhance
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(1.5)
-            
-            # Save with extreme compression
+            # Save with good quality for text recognition
             buffer = BytesIO()
-            img.save(buffer, format='JPEG', quality=10, optimize=True)
+            img.save(buffer, format='JPEG', quality=85, optimize=True)
             
             # Get the size in bytes
             size_in_bytes = buffer.tell()
@@ -88,69 +80,127 @@ class GroqImageProcessor:
             base64_image = self.encode_image(image_path)
             logger.info("Successfully encoded image to base64")
             
-            # Minimal prompt
-            prompt = (
-                "Table analysis:{\"table_headers\":[...],\"table_data\":[[...]],\"table_summary\":\"...\"}\n"
-                f"data:image/jpeg;base64,{base64_image}"
-            )
-            
             logger.info("Making API request to Groq")
             response = self.client.chat.completions.create(
-                model="mixtral-8x7b-32768",
+                model=self.model,
                 messages=[
-                    {"role": "system", "content": "Table analyzer"},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Extract the table information from this image. For each table found, list the headers, data rows, and provide a brief summary."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
                 ],
-                temperature=0.1,
-                response_format={"type": "json_object"}
+                temperature=0.7,
+                max_tokens=2048,
+                top_p=1,
+                stream=False,
+                stop=None
             )
             logger.info("Received response from Groq API")
             
             try:
                 if hasattr(response.choices[0].message, 'content'):
-                    logger.info("Parsing API response content")
-                    result = json.loads(response.choices[0].message.content)
+                    logger.info("Processing API response content")
+                    content = response.choices[0].message.content
+                    logger.debug(f"Raw API response: {content}")
+
+                    # Process the natural language response
+                    processed_result = {
+                        'table_headers': [],
+                        'table_data': [],
+                        'table_summary': content  # Store full response as summary
+                    }
+
+                    # Try to extract structured data if available
+                    try:
+                        # Look for table headers
+                        if "headers" in content.lower():
+                            headers_section = content[content.lower().find("headers"):].split("\n")[0]
+                            headers = [h.strip() for h in headers_section.split(":")[1].split(",") if h.strip()]
+                            if headers:
+                                processed_result['table_headers'] = headers
+
+                        # Look for table data/rows
+                        if "row" in content.lower() or "data" in content.lower():
+                            data_lines = [line.strip() for line in content.split("\n") 
+                                        if ("row" in line.lower() or "data" in line.lower()) 
+                                        and ":" in line]
+                            if data_lines:
+                                processed_result['table_data'] = [
+                                    [cell.strip() for cell in line.split(":")[1].split(",")]
+                                    for line in data_lines
+                                ]
+
+                    except Exception as e:
+                        logger.warning(f"Error extracting structured data: {e}")
+                        # Keep the full response as summary if structured extraction fails
                     
-                    required_keys = ['table_headers', 'table_data', 'table_summary']
-                    if not all(key in result for key in required_keys):
-                        logger.error("Missing required keys in JSON response")
-                        raise ValueError("Missing required keys in JSON response")
-                    
-                    if not isinstance(result['table_headers'], list):
-                        logger.warning("table_headers is not a list, setting to empty list")
-                        result['table_headers'] = []
-                    
-                    if not isinstance(result['table_data'], list):
-                        logger.warning("table_data is not a list, setting to empty list")
-                        result['table_data'] = []
-                    
-                    if not isinstance(result['table_summary'], str):
-                        logger.warning("table_summary is not a string, setting default message")
-                        result['table_summary'] = "No summary available"
-                    
-                    logger.info(f"Successfully processed image. Result: {result}")
-                    return result
+                    logger.info(f"Successfully processed image. Result: {processed_result}")
+                    return processed_result
                 else:
                     logger.error("No content in API response")
-                    raise ValueError("No content in API response")
+                    return {
+                        'table_headers': [],
+                        'table_data': [],
+                        'table_summary': "No content in API response"
+                    }
                     
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON response: {str(e)}")
-                raise
+            except Exception as e:
+                # Check if this is a Groq API error with failed_generation
+                if hasattr(e, 'response') and hasattr(e.response, 'json'):
+                    error_json = e.response.json()
+                    if isinstance(error_json, dict) and 'error' in error_json:
+                        error_data = error_json['error']
+                        if 'failed_generation' in error_data:
+                            try:
+                                # Try to parse the failed_generation as JSON
+                                failed_gen = json.loads(error_data['failed_generation'])
+                                logger.info("Successfully extracted data from failed_generation")
+                                return {
+                                    'table_headers': failed_gen.get('table_headers', []),
+                                    'table_data': failed_gen.get('table_data', []),
+                                    'table_summary': failed_gen.get('table_summary', 'No summary available')
+                                }
+                            except json.JSONDecodeError:
+                                logger.error("Failed to parse failed_generation JSON")
+
+                logger.error(f"Error processing image {image_path}: {str(e)}", exc_info=True)
+                return {
+                    'table_headers': [],
+                    'table_data': [],
+                    'table_summary': f"Error processing image: {str(e)}"
+                }
                 
         except Exception as e:
             logger.error(f"Error processing image {image_path}: {str(e)}", exc_info=True)
-            raise
+            return {
+                'table_headers': [],
+                'table_data': [],
+                'table_summary': f"Error processing image: {str(e)}"
+            }
 
     def process_directory(self, directory_path: str) -> List[Dict[str, Any]]:
-        """Process all PNG files in a directory."""
+        """Process all image files in a directory."""
         logger.info(f"Processing directory: {directory_path}")
         results = []
         
-        # Get all PNG files
-        png_files = Path(directory_path).glob('*.png')
+        # Get all supported image files
+        supported_extensions = ('*.png', '*.jpg', '*.jpeg', '*.gif', '*.bmp')
+        image_files = []
+        for ext in supported_extensions:
+            image_files.extend(Path(directory_path).glob(ext))
         
-        for image_path in png_files:
+        for image_path in image_files:
             try:
                 result = self.process_image(str(image_path))
                 results.append({
