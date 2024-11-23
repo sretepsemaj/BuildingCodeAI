@@ -6,7 +6,8 @@ from django.urls import include, path
 from django.conf import settings
 from main.views import (
     home, login_view, logout_view,
-    register, profile, image_processor, image_processor1
+    register, profile, image_llama, image_open,
+    image_groq
 )
 
 urlpatterns = [
@@ -17,8 +18,9 @@ urlpatterns = [
     path('register/', register, name='register'),
     path('profile/', profile, name='profile'),
     path('accounts/', include('django.contrib.auth.urls')),  # For password reset, etc.
-    path('image_processor/', image_processor, name='image_processor'),
-    path('image_processor1/', image_processor1, name='image_processor1'),
+    path('image_llama/', image_llama, name='image_llama'),
+    path('image_open/', image_open, name='image_open'),
+    path('image_groq/', image_groq, name='image_groq'),
 ]
 
 if settings.DEBUG:

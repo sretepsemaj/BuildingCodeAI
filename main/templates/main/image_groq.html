@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid px-4 py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h4 mb-0">Image Analysis Results</h2>
+        <div>
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-2"></i>Back
+            </a>
+        </div>
+    </div>
+
+    {% if results %}
+        <div class="results-container">
+            {% for result in results %}
+                <div class="analysis-card mb-4">
+                    <div class="analysis-header p-3 border-bottom">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-image text-muted me-2"></i>
+                            <h5 class="mb-0 text-muted">{{ result.filename }}</h5>
+                        </div>
+                    </div>
+                    <div class="analysis-content p-3">
+                        {% if result.data.table_headers %}
+                            <div class="table-container">
+                                <table class="analysis-table">
+                                    <thead>
+                                        <tr>
+                                            {% for header in result.data.table_headers %}
+                                                <th>{{ header }}</th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for row in result.data.table_data %}
+                                            <tr>
+                                                {% for cell in row %}
+                                                    <td>{{ cell }}</td>
+                                                {% endfor %}
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
+
+                        {% if result.data.table_summary %}
+                            <div class="summary-section mt-4">
+                                <h6 class="text-muted mb-2">Summary</h6>
+                                <p class="summary-text mb-0">{{ result.data.table_summary }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="processing-state">
+            <div class="spinner-border text-primary spinner-sm me-2" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <span class="text-muted">Processing images...</span>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .container-fluid {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .analysis-card {
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }
+    
+    .analysis-card:hover {
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .analysis-header {
+        background: #f8f9fa;
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+    }
+    
+    .analysis-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        font-size: 0.9rem;
+    }
+    
+    .analysis-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        font-weight: 600;
+        color: #444;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .analysis-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+        color: #333;
+    }
+    
+    .analysis-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+        margin: 0 -1rem;
+        padding: 0 1rem;
+    }
+    
+    .summary-section {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 6px;
+    }
+    
+    .summary-text {
+        color: #444;
+        line-height: 1.6;
+    }
+    
+    .processing-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    
+    .spinner-sm {
+        width: 1rem;
+        height: 1rem;
+        border-width: 0.15em;
+    }
+    
+    .btn-outline-secondary {
+        border-color: #dee2e6;
+        color: #6c757d;
+    }
+    
+    .btn-outline-secondary:hover {
+        background-color: #f8f9fa;
+        border-color: #ced4da;
+        color: #495057;
+    }
+</style>
+{% endblock %}

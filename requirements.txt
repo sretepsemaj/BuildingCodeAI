@@ -32,6 +32,10 @@ pytest
 numpy
 Pillow
 openai>=1.0.0
+fpdf>=1.7.2
+groq>=0.3.0
+llama-parse>=0.0.27
+llama-index-core>=0.10.1
 
 # For PostgreSQL support
-psycopg2-binary>=2.9.9  
+psycopg2-binary>=2.9.9

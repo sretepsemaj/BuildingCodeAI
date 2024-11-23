@@ -12,15 +12,21 @@
                 <a href="{% url 'profile' %}" class="btn btn-primary btn-lg">Account Dashboard</a>
                 <div class="row">
                     <div class="col-md-6">
-                        <a href="{% url 'image_processor1' %}" class="btn btn-success btn-lg w-100">
+                        <a href="{% url 'image_open' %}" class="btn btn-success btn-lg w-100">
                             <i class="fas fa-brain me-2"></i>GPT-4 Vision Analysis
                             <div class="small text-light">Powered by OpenAI</div>
                         </a>
                     </div>
                     <div class="col-md-6">
-                        <a href="{% url 'image_processor' %}" class="btn btn-info btn-lg w-100">
-                            <i class="fas fa-image me-2"></i>Standard Image Analysis
-                            <div class="small text-light">Basic Processing</div>
+                        <a href="{% url 'image_llama' %}" class="btn btn-info btn-lg w-100">
+                            <i class="fas fa-image me-2"></i>LlamaParse Vision Analysis
+                            <div class="small text-light">Powered by Llama</div>
+                        </a>
+                    </div>
+                    <div class="col-md-6">
+                        <a href="{% url 'image_groq' %}" class="btn btn-info btn-lg w-100">
+                            <i class="fas fa-image me-2"></i>Groq Vision Analysis
+                            <div class="small text-light">Powered by Groq</div>
                         </a>
                     </div>
                 </div>
