@@ -30,54 +30,62 @@ class GroqImageProcessor:
         self.model = "llama-3.2-11b-vision-preview"
         logger.info("GroqImageProcessor initialized successfully")
 
-    def preprocess_image(self, image_path: str) -> bytes:
+    def preprocess_image(self, image_data: bytes) -> bytes:
         """Preprocess image while maintaining quality for table recognition."""
-        logger.info(f"Preprocessing image: {image_path}")
+        logger.info("Preprocessing image data")
         
-        # Open and convert image to RGB (removing alpha channel if present)
-        with Image.open(image_path) as img:
-            # Convert to RGB if necessary
-            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
-                bg = Image.new('RGB', img.size, (255, 255, 255))
-                if img.mode == 'P':
-                    img = img.convert('RGBA')
-                bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
-                img = bg
-            elif img.mode != 'RGB':
-                img = img.convert('RGB')
-            
-            # Calculate new size while maintaining aspect ratio
-            max_size = 800  
-            ratio = min(max_size/img.width, max_size/img.height)
-            new_size = (int(img.width * ratio), int(img.height * ratio))
-            
-            # Resize image using high-quality resampling
-            img = img.resize(new_size, Image.Resampling.LANCZOS)
-            
-            # Save with good quality for text recognition
-            buffer = BytesIO()
-            img.save(buffer, format='JPEG', quality=85, optimize=True)
-            
-            # Get the size in bytes
-            size_in_bytes = buffer.tell()
-            logger.info(f"Image preprocessed. New size: {new_size}, Bytes: {size_in_bytes}")
-            
-            return buffer.getvalue()
-
-    def encode_image(self, image_path: str) -> str:
-        """Encode an image file to base64."""
-        logger.debug(f"Encoding image: {image_path}")
-        # Preprocess and encode
-        image_data = self.preprocess_image(image_path)
-        return base64.b64encode(image_data).decode('utf-8')
-
-    def process_image(self, image_path: str) -> Dict[str, Any]:
-        """Process a single image using Groq API."""
         try:
-            logger.info(f"Starting to process image: {image_path}")
+            # Open image from binary data
+            with BytesIO(image_data) as data, Image.open(data) as img:
+                # Convert to RGB if necessary
+                if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                    bg = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    bg.paste(img, mask=img.split()[3] if img.mode == 'RGBA' else None)
+                    img = bg
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Calculate new size while maintaining aspect ratio
+                max_size = 800  
+                ratio = min(max_size/img.width, max_size/img.height)
+                new_size = (int(img.width * ratio), int(img.height * ratio))
+                
+                # Resize image using high-quality resampling
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+                
+                # Save with good quality for text recognition
+                buffer = BytesIO()
+                img.save(buffer, format='JPEG', quality=85, optimize=True)
+                
+                # Get the size in bytes
+                size_in_bytes = buffer.tell()
+                logger.info(f"Image preprocessed. New size: {new_size}, Bytes: {size_in_bytes}")
+                
+                return buffer.getvalue()
+        except Exception as e:
+            logger.error(f"Error preprocessing image: {str(e)}")
+            raise
+
+    def encode_image(self, image_data: bytes) -> str:
+        """Encode image data to base64."""
+        logger.debug("Encoding image data to base64")
+        try:
+            # Preprocess and encode
+            processed_data = self.preprocess_image(image_data)
+            return base64.b64encode(processed_data).decode('utf-8')
+        except Exception as e:
+            logger.error(f"Error encoding image: {str(e)}")
+            raise
+
+    def process_image(self, image_data: bytes) -> Dict[str, Any]:
+        """Process image data using Groq API."""
+        try:
+            logger.info("Starting to process image data")
             
             # Encode image to base64
-            base64_image = self.encode_image(image_path)
+            base64_image = self.encode_image(image_data)
             logger.info("Successfully encoded image to base64")
             
             logger.info("Making API request to Groq")
@@ -89,7 +97,12 @@ class GroqImageProcessor:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Extract the table information from this image. For each table found, list the headers, data rows, and provide a brief summary."
+                                "text": """Analyze this image and extract the first table you find. Format your response as follows:
+
+1. Present the table in markdown format with | separators
+2. Provide a brief summary under a 'Summary' heading
+3. Do not repeat the table or summary
+4. If multiple tables exist, focus only on the first one"""
                             },
                             {
                                 "type": "image_url",
@@ -118,33 +131,63 @@ class GroqImageProcessor:
                     processed_result = {
                         'table_headers': [],
                         'table_data': [],
-                        'table_summary': content  # Store full response as summary
+                        'table_summary': ''
                     }
 
-                    # Try to extract structured data if available
-                    try:
-                        # Look for table headers
-                        if "headers" in content.lower():
-                            headers_section = content[content.lower().find("headers"):].split("\n")[0]
-                            headers = [h.strip() for h in headers_section.split(":")[1].split(",") if h.strip()]
-                            if headers:
-                                processed_result['table_headers'] = headers
+                    # Extract tables from markdown format
+                    tables = []
+                    current_table = []
+                    summary_parts = []
+                    in_table = False
 
-                        # Look for table data/rows
-                        if "row" in content.lower() or "data" in content.lower():
-                            data_lines = [line.strip() for line in content.split("\n") 
-                                        if ("row" in line.lower() or "data" in line.lower()) 
-                                        and ":" in line]
-                            if data_lines:
-                                processed_result['table_data'] = [
-                                    [cell.strip() for cell in line.split(":")[1].split(",")]
-                                    for line in data_lines
-                                ]
+                    for line in content.split('\n'):
+                        line = line.strip()
+                        
+                        # Handle table markers
+                        if '|' in line and ':--' in line:  # Header separator
+                            in_table = True
+                            continue
+                        
+                        if line.startswith('|') and in_table:
+                            # Clean up table row
+                            row = [cell.strip() for cell in line.strip('|').split('|')]
+                            current_table.append(row)
+                        elif in_table and not line:  # Empty line after table
+                            if current_table:
+                                tables.append(current_table)
+                                current_table = []
+                            in_table = False
+                        elif not in_table and line:  # Non-table content
+                            if not line.startswith('**'):  # Skip table titles
+                                summary_parts.append(line)
 
-                    except Exception as e:
-                        logger.warning(f"Error extracting structured data: {e}")
-                        # Keep the full response as summary if structured extraction fails
-                    
+                    # Add last table if exists
+                    if current_table:
+                        tables.append(current_table)
+
+                    # Process tables - remove duplicates
+                    unique_tables = []
+                    seen = set()
+                    for table in tables:
+                        table_str = str(table)
+                        if table_str not in seen:
+                            seen.add(table_str)
+                            unique_tables.append(table)
+
+                    # Use the first unique table found
+                    if unique_tables:
+                        first_table = unique_tables[0]
+                        if len(first_table) > 1:  # Has headers and data
+                            processed_result['table_headers'] = first_table[0]
+                            processed_result['table_data'] = first_table[1:]
+
+                    # Clean up summary
+                    summary = ' '.join(summary_parts)
+                    # Remove duplicate summaries
+                    if "Summary" in summary:
+                        summary = summary[summary.find("Summary"):].split("\n\n")[0]
+                    processed_result['table_summary'] = summary.strip()
+
                     logger.info(f"Successfully processed image. Result: {processed_result}")
                     return processed_result
                 else:
@@ -174,7 +217,7 @@ class GroqImageProcessor:
                             except json.JSONDecodeError:
                                 logger.error("Failed to parse failed_generation JSON")
 
-                logger.error(f"Error processing image {image_path}: {str(e)}", exc_info=True)
+                logger.error(f"Error processing image: {str(e)}", exc_info=True)
                 return {
                     'table_headers': [],
                     'table_data': [],
@@ -182,7 +225,7 @@ class GroqImageProcessor:
                 }
                 
         except Exception as e:
-            logger.error(f"Error processing image {image_path}: {str(e)}", exc_info=True)
+            logger.error(f"Error processing image: {str(e)}", exc_info=True)
             return {
                 'table_headers': [],
                 'table_data': [],
@@ -202,7 +245,9 @@ class GroqImageProcessor:
         
         for image_path in image_files:
             try:
-                result = self.process_image(str(image_path))
+                with open(image_path, 'rb') as f:
+                    image_data = f.read()
+                result = self.process_image(image_data)
                 results.append({
                     'filename': image_path.name,
                     'data': result

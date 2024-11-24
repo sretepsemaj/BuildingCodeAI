@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Llama Vision Analysis{% endblock %}
 
@@ -13,8 +14,8 @@
                 <form method="post" enctype="multipart/form-data" class="mt-3">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label for="image" class="form-label">Select PNG Image</label>
-                        <input type="file" class="form-control" id="image" name="image" accept=".png">
+                        <label for="image" class="form-label">Select Image</label>
+                        <input type="file" class="form-control" id="image" name="image" accept="image/*">
                     </div>
                     <button type="submit" class="btn btn-primary">Analyze Image</button>
                 </form>
@@ -22,125 +23,82 @@
         </div>
 
         <!-- Analysis Results -->
-        {% if response %}
+        {% if results %}
         <div class="analysis-results mt-4">
+            {% for result in results %}
             <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Analysis Results</h5>
+                    <span class="badge {% if result.data.success %}bg-success{% else %}bg-warning{% endif %}">
+                        {{ result.data.status|title }}
+                    </span>
+                </div>
                 <div class="card-body">
-                    <h3 class="card-title">Processing Results</h3>
-                    <div class="result-status mb-3">
-                        <p><strong>Status:</strong> 
-                            <span class="badge {% if response.success %}bg-success{% else %}bg-danger{% endif %}">
-                                {{ response.status|title }}
-                            </span>
-                        </p>
-                        <p><strong>Message:</strong> {{ response.message }}</p>
-                        {% if response.timestamp %}
-                        <p><strong>Time:</strong> {{ response.timestamp }}</p>
+                    {% if result.data.table_summary %}
+                        <div class="content-section">
+                            <div class="markdown-content">
+                                {{ result.data.table_summary|linebreaks }}
+                            </div>
+                        </div>
+                        {% if result.data.pdf_path %}
+                            <div class="mt-3">
+                                <a href="{{ result.data.pdf_path }}" class="btn btn-secondary" target="_blank">
+                                    View PDF Report
+                                </a>
+                            </div>
                         {% endif %}
-                    </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            No content could be extracted from the image.
+                        </div>
+                    {% endif %}
                 </div>
             </div>
-
-            {% if response.success %}
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h3 class="card-title">Content Analysis</h3>
-                    <div class="content-analysis">
-                        {{ response.analysis|safe|linebreaks }}
-                    </div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-body">
-                    <h3 class="card-title">Statistics</h3>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <h5>Content Length</h5>
-                                <p>{{ response.content|length }} characters</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <h5>Word Count</h5>
-                                <p>{{ response.content|wordcount }} words</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <h5>Sections Found</h5>
-                                <p>{{ response.section_count|default:"0" }} sections</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
+            {% endfor %}
         </div>
         {% endif %}
-
-        <!-- Back Button -->
-        <div class="mt-4 mb-4">
-            <a href="{% url 'profile' %}" class="btn btn-outline-primary">Back to Profile</a>
-        </div>
     </div>
 
     <style>
+        .markdown-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
         .card {
             border: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s;
             margin-bottom: 1.5rem;
         }
-        .card:hover {
-            transform: translateY(-2px);
+        .alert {
+            border-left: 4px solid;
+        }
+        .alert-success {
+            border-left-color: #28a745;
+        }
+        .alert-warning {
+            border-left-color: #ffc107;
+        }
+        .alert-danger {
+            border-left-color: #dc3545;
         }
         .btn {
             padding: 8px 20px;
             border-radius: 5px;
         }
-        .btn-primary {
-            background-color: #007bff;
-            border: none;
+        .table-responsive {
+            margin-top: 1rem;
         }
-        .btn-primary:hover {
-            background-color: #0056b3;
-        }
-        .card-title {
-            color: #2c3e50;
-            margin-bottom: 1rem;
-        }
-        .content-analysis {
-            background-color: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-        .stat-card {
-            text-align: center;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-        }
-        .stat-card h5 {
-            color: #2c3e50;
-            margin-bottom: 0.5rem;
-        }
-        .stat-card p {
-            color: #007bff;
-            font-size: 1.2rem;
-            margin-bottom: 0;
+        .summary-section {
+            margin-top: 1.5rem;
         }
         .badge {
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
-        }
-        .result-status {
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 5px;
+            padding: 0.5em 1em;
         }
     </style>
 {% endblock %}
