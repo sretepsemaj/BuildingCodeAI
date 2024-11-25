@@ -1,48 +1,57 @@
 # Core Django
-Django>=5.0
+Django==5.0.2
 asgiref==3.7.2
 sqlparse==0.4.4
 tzdata==2024.1
 
 # Environment and Configuration
-python-dotenv>=1.0.0
+python-dotenv==1.0.1
+django-environ==0.11.2
 
 # Forms and UI
-django-crispy-forms>=2.1
-crispy-bootstrap5>=2023.10
+django-crispy-forms==2.1
+crispy-bootstrap5==2023.10
 
 # Development Tools
-django-debug-toolbar>=4.2.0
+django-debug-toolbar==4.3.0
 flake8>=7.0.0
-black>=24.1.0
-isort>=5.13.0
-pre-commit>=3.6.0
+black==24.1.0
+isort==5.13.0
+pre-commit==3.6.0
 
 # Production Server
-gunicorn>=21.2.0
-whitenoise>=6.6.0
+gunicorn==21.2.0
+whitenoise==6.6.0
 
 # Security
-django-cors-headers>=4.3.1
-django-csp>=3.7
-django-redis>=5.4.0
+django-cors-headers==4.3.1
+django-csp==3.7
+django-redis==5.4.0
 
 # Image Processing and OCR
-Pillow>=10.2.0
-pytesseract>=0.3.10
-pdf2image>=1.17.0
+Pillow==10.2.0
+pytesseract==0.3.13
+pdf2image==1.17.0
+PyMuPDF==1.24.9
 
 # AI and Document Processing
-openai>=1.0.0
-groq>=0.3.0
-llama-parse>=0.0.27
-llama-index-core>=0.10.1
+openai==1.55.0
+groq==0.12.0
+llama-parse==0.5.15
+llama-index-core==0.12.1
+llama-index-embeddings-openai==0.3.0
+llama-index-llms-openai==0.3.1
+llama-index-readers-file==0.4.0
 fpdf>=1.7.2
 
 # Testing
-pytest>=8.0.0
-pytest-django>=4.8.0
-numpy>=1.26.0
+pytest==8.0.0
+pytest-django==4.8.0
+numpy==1.26.4
 
 # Database
-psycopg2-binary>=2.9.9
+psycopg2-binary==2.9.9
+
+# Additional Dependencies
+python-magic==0.4.27
+filetype==1.2.0
