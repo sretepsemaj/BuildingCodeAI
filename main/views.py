@@ -8,6 +8,9 @@ import os
 from datetime import datetime
 from .utils.image_llama import LlamaImageProcessor
 from .utils.doc_classic import DocClassicProcessor
+import uuid
+import shutil
+from .models import ProcessedDocument, DocumentBatch
 
 def home(request):
     return render(request, "main/home.html")
@@ -242,47 +245,120 @@ def image_groq(request):
 @login_required
 def process_doc_classic(request):
     results = []
-    if request.method == 'POST' and request.FILES.get('document'):
-        document = request.FILES['document']
-        
-        # Initialize the processor
+    if request.method == 'POST':
         processor = DocClassicProcessor()
         
-        # Process the document
         try:
-            result = processor.process_single(document)
+            if request.FILES.getlist('documents'):
+                # Handle multiple file upload
+                documents = request.FILES.getlist('documents')
+                temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp', str(uuid.uuid4()))
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                # Save uploaded files to temp directory
+                for document in documents:
+                    file_path = os.path.join(temp_dir, document.name)
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in document.chunks():
+                            destination.write(chunk)
+                
+                # Process the folder
+                batch_result = processor.process_folder(
+                    temp_dir,
+                    batch_name=f"Upload {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                    user=request.user
+                )
+                
+                # Get batch info and prepare results
+                batch = DocumentBatch.objects.get(id=batch_result['batch_id'])
+                successful_docs = batch.documents.filter(status='success')
+                
+                for doc in successful_docs:
+                    results.append({
+                        'filename': doc.filename,
+                        'original_url': doc.original_url,
+                        'text_url': doc.text_url,
+                        'text': doc.get_text_content()
+                    })
+                
+                messages.success(
+                    request,
+                    f"Successfully processed {batch_result['successful']} out of {batch_result['total_documents']} documents. Batch ID: {batch_result['batch_id']}"
+                )
+                
+                # Clean up temp directory
+                shutil.rmtree(temp_dir)
             
-            # Get the media URLs for the files
-            original_url = settings.MEDIA_URL + os.path.relpath(result['original_path'], settings.MEDIA_ROOT)
-            text_url = settings.MEDIA_URL + os.path.relpath(result['text_path'], settings.MEDIA_ROOT)
-            
-            # Print debug information
-            print(f"Original URL: {original_url}")
-            print(f"Text URL: {text_url}")
-            print(f"Text content: {result.get('text', 'No text found')}")
-            
-            results.append({
-                'filename': document.name,
-                'original_path': original_url,
-                'text_path': text_url,
-                'text': result.get('text', '')
-            })
-            
-            messages.success(request, "Document processed successfully!")
-            print(f"Results: {results}")  # Debug print
+            elif request.FILES.get('document'):
+                # Handle single file upload
+                document = request.FILES['document']
+                temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp', str(uuid.uuid4()))
+                os.makedirs(temp_dir, exist_ok=True)
+                file_path = os.path.join(temp_dir, document.name)
+                
+                # Save file temporarily
+                with open(file_path, 'wb+') as destination:
+                    for chunk in document.chunks():
+                        destination.write(chunk)
+                
+                # Process as a single-file batch
+                batch_result = processor.process_folder(
+                    temp_dir,
+                    batch_name=f"Single {document.name}",
+                    user=request.user
+                )
+                
+                if batch_result['successful'] > 0:
+                    # Get the processed document
+                    doc = ProcessedDocument.objects.filter(
+                        batch_id=batch_result['batch_id'],
+                        status='success'
+                    ).first()
+                    
+                    if doc:
+                        results.append({
+                            'filename': doc.filename,
+                            'original_url': doc.original_url,
+                            'text_url': doc.text_url,
+                            'text': doc.get_text_content()
+                        })
+                        messages.success(request, "Document processed successfully!")
+                    else:
+                        messages.error(request, "Document processing failed.")
+                
+                # Clean up temp directory
+                shutil.rmtree(temp_dir)
             
         except ValueError as e:
             messages.error(request, str(e))
-            print(f"ValueError: {str(e)}")  # Debug print
         except Exception as e:
-            messages.error(request, f"Error processing document: {str(e)}")
-            print(f"Exception: {str(e)}")  # Debug print
+            messages.error(request, f"Error processing document(s): {str(e)}")
         finally:
             processor.cleanup()
     
-    context = {'results': results}
-    print(f"Final context: {context}")  # Debug print
-    return render(request, 'main/doc_classic.html', context)
+    return render(request, 'main/doc_classic.html', {'results': results})
+
+
+@login_required
+def view_document_batches(request):
+    """View all document batches for the current user."""
+    batches = DocumentBatch.objects.filter(user=request.user).order_by('-created_at')
+    return render(request, 'main/doc_batches.html', {'batches': batches})
+
+
+@login_required
+def view_batch_details(request, batch_id):
+    """View details of a specific document batch."""
+    try:
+        batch = DocumentBatch.objects.get(id=batch_id, user=request.user)
+        documents = batch.documents.all().order_by('-processed_at')
+        return render(request, 'main/doc_batch_details.html', {
+            'batch': batch,
+            'documents': documents
+        })
+    except DocumentBatch.DoesNotExist:
+        messages.error(request, "Batch not found.")
+        return redirect('view_document_batches')
 
 
 def logout_view(request):

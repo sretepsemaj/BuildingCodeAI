@@ -27,15 +27,22 @@ django-cors-headers>=4.3.1
 django-csp>=3.7
 django-redis>=5.4.0
 
-#openai 
-pytest
-numpy
-Pillow
+# Image Processing and OCR
+Pillow>=10.2.0
+pytesseract>=0.3.10
+pdf2image>=1.17.0
+
+# AI and Document Processing
 openai>=1.0.0
-fpdf>=1.7.2
 groq>=0.3.0
 llama-parse>=0.0.27
 llama-index-core>=0.10.1
+fpdf>=1.7.2
 
-# For PostgreSQL support
+# Testing
+pytest>=8.0.0
+pytest-django>=4.8.0
+numpy>=1.26.0
+
+# Database
 psycopg2-binary>=2.9.9

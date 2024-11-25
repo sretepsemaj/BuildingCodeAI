@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Batch Details{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'view_document_batches' %}">Batches</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ batch.name|default:batch.id }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Batch Details</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ batch.name|default:"Unnamed Batch" }}</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Status:</strong></p>
+                            {% if batch.status == 'completed' %}
+                            <span class="badge bg-success">Completed</span>
+                            {% elif batch.status == 'processing' %}
+                            <span class="badge bg-warning">Processing</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Created:</strong></p>
+                            <p>{{ batch.created_at|date:"Y-m-d H:i:s" }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Total Documents:</strong></p>
+                            <p>{{ batch.total_documents }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Success Rate:</strong></p>
+                            <p>{{ batch.successful_documents|floatformat:0 }}%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if documents %}
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Status</th>
+                    <th>Size</th>
+                    <th>Processed At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>{{ doc.filename }}</td>
+                    <td>
+                        {% if doc.status == 'success' %}
+                        <span class="badge bg-success">Success</span>
+                        {% else %}
+                        <span class="badge bg-danger">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ doc.file_size|filesizeformat }}</td>
+                    <td>{{ doc.processed_at|date:"Y-m-d H:i:s" }}</td>
+                    <td>
+                        {% if doc.status == 'success' %}
+                        <div class="btn-group">
+                            <a href="{{ doc.original_url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                View Original
+                            </a>
+                            <a href="{{ doc.text_url }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                                View Text
+                            </a>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        No documents found in this batch.
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .card {
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+    }
+    
+    .table {
+        background-color: white;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+    }
+    
+    .table thead th {
+        border-bottom: 2px solid #dee2e6;
+        background-color: #f8f9fa;
+    }
+    
+    .badge {
+        font-size: 0.9em;
+        padding: 0.5em 0.7em;
+    }
+    
+    .btn-group .btn {
+        margin-right: 5px;
+    }
+</style>
+{% endblock %}

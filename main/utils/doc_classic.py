@@ -56,41 +56,52 @@ class DocClassicProcessor:
             # Validate the file first
             self.validate_image(uploaded_file)
             
-            # Save the uploaded file
+            # Create permanent directories
+            batch_id = str(uuid.uuid4())
+            
+            # Create full paths
+            full_permanent_dir = os.path.join(settings.MEDIA_ROOT, 'uploads', 'doc_classic', batch_id)
+            full_text_dir = os.path.join(settings.MEDIA_ROOT, 'processed', 'doc_classic', batch_id)
+            
+            os.makedirs(full_permanent_dir, exist_ok=True)
+            os.makedirs(full_text_dir, exist_ok=True)
+            
+            # Save the uploaded file to permanent location
             original_filename = uploaded_file.name
-            original_path = os.path.join(self.source_dir, original_filename)
+            relative_original_path = os.path.join('uploads', 'doc_classic', batch_id, original_filename)
+            full_original_path = os.path.join(settings.MEDIA_ROOT, relative_original_path)
             
-            print(f"Saving file to: {original_path}")  # Debug print
+            print(f"Saving file to: {full_original_path}")
             
-            with open(original_path, 'wb+') as destination:
+            with open(full_original_path, 'wb+') as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
             
             # Process the image and extract text
-            print("Extracting text from image...")  # Debug print
-            text = self._extract_text_from_image(original_path)
-            print(f"Extracted text: {text[:100]}...")  # Debug print first 100 chars
+            print("Extracting text from image...")
+            text = self._extract_text_from_image(full_original_path)
+            print(f"Extracted text: {text[:100]}...")
             
             # Save the extracted text
             text_filename = os.path.splitext(original_filename)[0] + '.txt'
-            text_path = os.path.join(self.output_dir, text_filename)
+            relative_text_path = os.path.join('processed', 'doc_classic', batch_id, text_filename)
+            full_text_path = os.path.join(settings.MEDIA_ROOT, relative_text_path)
             
-            print(f"Saving text to: {text_path}")  # Debug print
+            print(f"Saving text to: {full_text_path}")
             
-            with open(text_path, 'w', encoding='utf-8') as f:
+            with open(full_text_path, 'w', encoding='utf-8') as f:
                 f.write(text)
             
-            logger.info(f"Successfully processed {original_path} and saved text to {text_path}")
+            logger.info(f"Successfully processed {full_original_path} and saved text to {full_text_path}")
             
             # Verify files exist
-            if not os.path.exists(original_path):
+            if not os.path.exists(full_original_path):
                 raise ValueError("Original file not found after processing")
-            if not os.path.exists(text_path):
-                raise ValueError("Text file not found after processing")
-                
+            
+            # Return relative paths for storage in the database
             return {
-                'original_path': original_path,
-                'text_path': text_path,
+                'original_path': relative_original_path,
+                'text_path': relative_text_path,
                 'text': text
             }
         except ValueError as e:
@@ -116,13 +127,110 @@ class DocClassicProcessor:
     def cleanup(self):
         """Clean up temporary files and directories."""
         try:
-            if os.path.exists(self.source_dir):
-                shutil.rmtree(self.source_dir)
-            if os.path.exists(self.output_dir):
-                shutil.rmtree(self.output_dir)
+            # Only clean up temporary validation files
+            temp_files = [f for f in os.listdir(self.source_dir) if f.startswith('temp_')]
+            for f in temp_files:
+                os.remove(os.path.join(self.source_dir, f))
             logger.info("Cleanup complete")
         except Exception as e:
             logger.error(f"Error during cleanup: {str(e)}")
+
+    def process_folder(self, folder_path, batch_name=None, user=None):
+        """Process all image files in a folder and return batch information."""
+        try:
+            # Create a new batch
+            from main.models import DocumentBatch, ProcessedDocument
+            
+            batch = DocumentBatch.objects.create(
+                name=batch_name or f"Batch {uuid.uuid4()}",
+                status='processing',
+                user=user
+            )
+            
+            successful = 0
+            total_documents = 0
+            
+            # Process each file in the folder
+            for filename in os.listdir(folder_path):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    total_documents += 1
+                    file_path = os.path.join(folder_path, filename)
+                    
+                    try:
+                        # Create a file object from the path
+                        with open(file_path, 'rb') as f:
+                            from django.core.files.uploadedfile import InMemoryUploadedFile
+                            file = InMemoryUploadedFile(
+                                f,
+                                None,
+                                filename,
+                                'image/jpeg',
+                                os.path.getsize(file_path),
+                                None
+                            )
+                            
+                            # Process the file
+                            result = self.process_single(file)
+                            
+                            # Create ProcessedDocument - store the full paths
+                            ProcessedDocument.objects.create(
+                                batch=batch,
+                                filename=filename,
+                                original_path=result['original_path'],
+                                text_path=result['text_path'],
+                                status='success'
+                            )
+                            successful += 1
+                            
+                    except Exception as e:
+                        logger.error(f"Error processing {filename}: {str(e)}")
+                        ProcessedDocument.objects.create(
+                            batch=batch,
+                            filename=filename,
+                            status='failed',
+                            error_message=str(e)
+                        )
+            
+            # Update batch status
+            batch.status = 'completed'
+            batch.save()
+            
+            return {
+                'batch_id': batch.id,
+                'successful': successful,
+                'total_documents': total_documents
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing folder: {str(e)}")
+            if 'batch' in locals():
+                batch.status = 'failed'
+                batch.save()
+            raise Exception(f"Error processing folder: {str(e)}")
+    
+    def get_batch_info(self, batch_id):
+        """Get information about a specific batch."""
+        try:
+            from main.models import DocumentBatch
+            batch = DocumentBatch.objects.get(id=batch_id)
+            documents = batch.documents.all()
+            
+            return {
+                'batch_id': batch.id,
+                'name': batch.name,
+                'status': batch.status,
+                'created_at': batch.created_at,
+                'documents': [{
+                    'filename': doc.filename,
+                    'status': doc.status,
+                    'error_message': doc.error_message
+                } for doc in documents]
+            }
+        except DocumentBatch.DoesNotExist:
+            raise ValueError(f"Batch {batch_id} not found")
+        except Exception as e:
+            logger.error(f"Error getting batch info: {str(e)}")
+            raise Exception(f"Error getting batch info: {str(e)}")
 
 def main():
     """Main function to demonstrate usage."""
