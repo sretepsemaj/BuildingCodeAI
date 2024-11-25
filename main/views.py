@@ -7,6 +7,7 @@ from django.conf import settings
 import os
 from datetime import datetime
 from .utils.image_llama import LlamaImageProcessor
+from .utils.doc_classic import DocClassicProcessor
 
 def home(request):
     return render(request, "main/home.html")
@@ -236,6 +237,52 @@ def image_groq(request):
     return render(request, 'main/image_groq.html', {
         'results': results
     })
+
+
+@login_required
+def process_doc_classic(request):
+    results = []
+    if request.method == 'POST' and request.FILES.get('document'):
+        document = request.FILES['document']
+        
+        # Initialize the processor
+        processor = DocClassicProcessor()
+        
+        # Process the document
+        try:
+            result = processor.process_single(document)
+            
+            # Get the media URLs for the files
+            original_url = settings.MEDIA_URL + os.path.relpath(result['original_path'], settings.MEDIA_ROOT)
+            text_url = settings.MEDIA_URL + os.path.relpath(result['text_path'], settings.MEDIA_ROOT)
+            
+            # Print debug information
+            print(f"Original URL: {original_url}")
+            print(f"Text URL: {text_url}")
+            print(f"Text content: {result.get('text', 'No text found')}")
+            
+            results.append({
+                'filename': document.name,
+                'original_path': original_url,
+                'text_path': text_url,
+                'text': result.get('text', '')
+            })
+            
+            messages.success(request, "Document processed successfully!")
+            print(f"Results: {results}")  # Debug print
+            
+        except ValueError as e:
+            messages.error(request, str(e))
+            print(f"ValueError: {str(e)}")  # Debug print
+        except Exception as e:
+            messages.error(request, f"Error processing document: {str(e)}")
+            print(f"Exception: {str(e)}")  # Debug print
+        finally:
+            processor.cleanup()
+    
+    context = {'results': results}
+    print(f"Final context: {context}")  # Debug print
+    return render(request, 'main/doc_classic.html', context)
 
 
 def logout_view(request):
