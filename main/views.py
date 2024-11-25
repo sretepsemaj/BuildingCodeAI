@@ -361,6 +361,49 @@ def view_batch_details(request, batch_id):
         return redirect('view_document_batches')
 
 
+@login_required
+def delete_batch(request, batch_id):
+    """Delete a document batch and all its associated files."""
+    if request.method == "POST":
+        try:
+            batch = DocumentBatch.objects.get(id=batch_id, user=request.user)
+            
+            # Delete associated documents first
+            documents = ProcessedDocument.objects.filter(batch=batch)
+            for doc in documents:
+                try:
+                    # Delete the physical files
+                    if doc.original_path:
+                        full_path = os.path.join(settings.MEDIA_ROOT, doc.original_path.lstrip('/'))
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
+                            
+                    if doc.text_path:
+                        full_path = os.path.join(settings.MEDIA_ROOT, doc.text_path.lstrip('/'))
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
+                except Exception as e:
+                    print(f"Error deleting files for document {doc.id}: {e}")
+                
+                # Delete the document record
+                try:
+                    doc.delete()
+                except Exception as e:
+                    print(f"Error deleting document record {doc.id}: {e}")
+
+            # Delete the batch itself
+            batch.delete()
+            messages.success(request, 'Batch deleted successfully.')
+            
+        except DocumentBatch.DoesNotExist:
+            messages.error(request, 'Batch not found.')
+        except Exception as e:
+            print(f"Error in delete_batch: {e}")
+            messages.error(request, f'Error deleting batch: {str(e)}')
+    
+    return redirect('view_document_batches')
+
+
 def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")

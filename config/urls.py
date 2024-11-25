@@ -21,6 +21,7 @@ urlpatterns = [
     path('doc_classic/', views.process_doc_classic, name='process_doc_classic'),
     path('doc_batches/', views.view_document_batches, name='view_document_batches'),
     path('doc_batch/<str:batch_id>/', views.view_batch_details, name='view_batch_details'),
+    path('doc_batch/<str:batch_id>/delete/', views.delete_batch, name='delete_batch'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
