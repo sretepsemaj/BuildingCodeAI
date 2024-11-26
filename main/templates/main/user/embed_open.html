@@ -14,8 +14,8 @@
                         {% csrf_token %}
                         <div class="form-group">
                             <label for="query">Enter your search query:</label>
-                            <input type="text" class="form-control" id="query" name="query" 
-                                   placeholder="What are the building code requirements?" 
+                            <input type="text" class="form-control" id="query" name="query"
+                                   placeholder="What are the building code requirements?"
                                    value="{{ query|default:'' }}">
                         </div>
                         <button type="submit" class="btn btn-primary mt-3">Search</button>

@@ -1,11 +1,15 @@
-"""Settings package initialization."""
+"""Django settings package.
+
+This package contains different settings configurations for development and production.
+"""
+
 import os
-from .base import *
+
+# Import all settings from base.py
+from .base import *  # noqa: F403
 
 # Load environment-specific settings
-DJANGO_ENV = os.getenv('DJANGO_ENV', 'development')
-
-if DJANGO_ENV == 'production':
-    from .prod import *
+if os.environ.get("DJANGO_ENV") == "production":
+    from .prod import *  # noqa: F403
 else:
-    from .dev import *
+    from .dev import *  # noqa: F403

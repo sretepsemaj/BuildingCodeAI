@@ -6,7 +6,7 @@
 {% block content %}
     <div class="container mt-4">
         <h2>Groq Vision Analysis</h2>
-        
+
         <!-- File Upload Form -->
         <div class="card mb-4">
             <div class="card-body">
@@ -49,7 +49,7 @@
                             </div>
                             {% endwith %}
                         </div>
-                        
+
                         <!-- Analysis Content -->
                         <div class="col-md-8">
                             <div class="analysis-content">
@@ -87,7 +87,7 @@
                                             </div>
                                         </div>
                                     {% endif %}
-                                    
+
                                     <!-- Table Summary -->
                                     {% if result.data.table_summary %}
                                         <div class="summary-section">
@@ -100,7 +100,7 @@
 
                                     <!-- Raw Response Toggle -->
                                     <div class="raw-response-section mt-4">
-                                        <button class="btn btn-outline-secondary btn-sm" type="button" 
+                                        <button class="btn btn-outline-secondary btn-sm" type="button"
                                                 data-bs-toggle="collapse" data-bs-target="#rawResponse{{ forloop.counter }}">
                                             Show Raw Response
                                         </button>
