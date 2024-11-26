@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.shortcuts import redirect, render
 from django.conf import settings
@@ -15,9 +16,10 @@ from .utils.embed_open import DocumentEmbedder
 import os
 from pathlib import Path
 import glob
+from django.contrib.auth.models import User
 
 def home(request):
-    return render(request, "main/home.html")
+    return render(request, "main/user/home.html")
 
 
 def login_view(request):
@@ -57,17 +59,42 @@ def register(request):
 
 @login_required
 def profile(request):
-    # You can add database queries here to get actual counts and activities
+    """View for user profile page with different templates for admin and regular users."""
+    # Get user's document batches
+    batches = DocumentBatch.objects.filter(user=request.user).order_by('-created_at')
+    search_count = batches.count()
+    doc_count = sum(batch.documents.count() for batch in batches)
+    
+    # Common context for both admin and regular users
     context = {
-        'gpt4_count': 0,  # Replace with actual count from database
-        'llama_count': 0,  # Replace with actual count from database
-        'groq_count': 0,   # Replace with actual count from database
+        'search_count': search_count,
+        'doc_count': doc_count,
         'recent_activities': []  # Replace with actual activities from database
     }
-    return render(request, "main/profile.html", context)
+    
+    # Add admin-specific stats for admin users
+    if request.user.is_staff:
+        # Get system-wide statistics
+        total_batches = DocumentBatch.objects.count()
+        total_users = User.objects.count()
+        total_docs = ProcessedDocument.objects.count()
+        successful_docs = ProcessedDocument.objects.filter(status='success').count()
+        
+        context.update({
+            'total_batches': total_batches,
+            'total_users': total_users,
+            'total_docs': total_docs,
+            'successful_docs': successful_docs,
+            'success_rate': (successful_docs / total_docs * 100) if total_docs > 0 else 0
+        })
+        template_name = "main/admin/profile.html"
+    else:
+        template_name = "main/user/profile.html"
+    
+    return render(request, template_name, context)
 
 
-@login_required
+@staff_member_required
 def image_llama(request):
     if request.method == 'POST' and request.FILES.get('image'):
         try:
@@ -77,7 +104,7 @@ def image_llama(request):
             # Check if it's a PNG file
             if not uploaded_file.name.lower().endswith('.png'):
                 messages.error(request, 'Please upload a PNG file.')
-                return render(request, 'main/image_llama.html')
+                return render(request, 'main/admin/image_llama.html')
             
             # Save the file temporarily
             png_directory = os.path.join(settings.BASE_DIR, 'main', 'static', 'images', 'png_files')
@@ -108,20 +135,20 @@ def image_llama(request):
                 }
             }]
             
-            return render(request, 'main/image_llama.html', {
+            return render(request, 'main/admin/image_llama.html', {
                 'results': results,
                 'success': True
             })
             
         except Exception as e:
             messages.error(request, f'Error processing image: {str(e)}')
-            return render(request, 'main/image_llama.html')
+            return render(request, 'main/admin/image_llama.html')
     
     # If no file uploaded, just show the form
-    return render(request, 'main/image_llama.html')
+    return render(request, 'main/admin/image_llama.html')
 
 
-@login_required
+@staff_member_required
 def image_open(request):
     from .utils.image_open import OpenAIImageProcessor
     
@@ -132,7 +159,7 @@ def image_open(request):
             
             # Check if it's a PNG file
             if not uploaded_file.name.lower().endswith('.png'):
-                return render(request, 'main/image_open.html', {
+                return render(request, 'main/admin/image_open.html', {
                     'response': {
                         'success': False,
                         'message': 'Please upload a PNG file.',
@@ -177,15 +204,15 @@ def image_open(request):
             # Add debug print
             print("Response data:", response)
             
-            return render(request, 'main/image_open.html', {
+            return render(request, 'main/admin/image_open.html', {
                 'results': response['results']
             })
             
         # If no file uploaded, just show the form
-        return render(request, 'main/image_open.html')
+        return render(request, 'main/admin/image_open.html')
         
     except Exception as e:
-        return render(request, 'main/image_open.html', {
+        return render(request, 'main/admin/image_open.html', {
             'response': {
                 'success': False,
                 'message': f'Error processing image: {str(e)}',
@@ -195,7 +222,7 @@ def image_open(request):
         })
 
 
-@login_required
+@staff_member_required
 def image_groq(request):
     """View for Groq image analysis."""
     import logging
@@ -241,12 +268,12 @@ def image_groq(request):
         logger.error(f"Error processing image: {str(e)}", exc_info=True)
         messages.error(request, f"Error processing image: {str(e)}")
     
-    return render(request, 'main/image_groq.html', {
+    return render(request, 'main/admin/image_groq.html', {
         'results': results
     })
 
 
-@login_required
+@staff_member_required
 def process_doc_classic(request):
     results = []
     if request.method == 'POST':
@@ -340,14 +367,14 @@ def process_doc_classic(request):
         finally:
             processor.cleanup()
     
-    return render(request, 'main/doc_classic.html', {'results': results})
+    return render(request, 'main/admin/doc_classic.html', {'results': results})
 
 
 @login_required
 def view_document_batches(request):
     """View all document batches for the current user."""
     batches = DocumentBatch.objects.filter(user=request.user).order_by('-created_at')
-    return render(request, 'main/doc_batches.html', {'batches': batches})
+    return render(request, 'main/user/doc_batches.html', {'batches': batches})
 
 
 @login_required
@@ -356,7 +383,7 @@ def view_batch_details(request, batch_id):
     try:
         batch = DocumentBatch.objects.get(id=batch_id, user=request.user)
         documents = batch.documents.all().order_by('-processed_at')
-        return render(request, 'main/doc_batch_details.html', {
+        return render(request, 'main/user/doc_batch_details.html', {
             'batch': batch,
             'documents': documents
         })
@@ -370,7 +397,10 @@ def delete_batch(request, batch_id):
     """Delete a document batch and all its associated files."""
     if request.method == "POST":
         try:
-            batch = DocumentBatch.objects.get(id=batch_id, user=request.user)
+            batch = DocumentBatch.objects.get(id=batch_id)
+            if batch.user != request.user and not request.user.is_staff:
+                messages.error(request, "You don't have permission to delete this batch.")
+                return redirect('view_document_batches')
             
             # Delete associated documents first
             documents = ProcessedDocument.objects.filter(batch=batch)
@@ -417,7 +447,10 @@ def logout_view(request):
 @login_required
 def semantic_search(request):
     """View for semantic search using document embeddings."""
-    context = {}
+    context = {
+        'results': [],
+        'error': None
+    }
     
     if request.method == 'POST':
         query = request.POST.get('query')
@@ -444,4 +477,4 @@ def semantic_search(request):
             except Exception as e:
                 context['error'] = f"Error performing search: {str(e)}"
     
-    return render(request, 'main/embed_open.html', context)
+    return render(request, 'main/user/embed_open.html', context)
