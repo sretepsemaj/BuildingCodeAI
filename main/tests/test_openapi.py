@@ -7,7 +7,7 @@ from django.conf import settings
 from django.test import TestCase
 from openai import OpenAI
 
-from main.utils.image_processor import LlamaImageProcessor
+from main.utils.image_llama import LlamaImageProcessor
 
 
 class TestOpenAIAPI(TestCase):
@@ -45,10 +45,12 @@ class TestOpenAIAPI(TestCase):
         """Test that the API key follows OpenAI's format."""
         self.api_key = os.getenv("OPEN_API_KEY")
         if self.api_key is not None:
-            self.assertTrue(self.api_key.startswith("sk-"), "OpenAI API key should start with 'sk-'")
+            self.assertTrue(
+                self.api_key.startswith("sk-"), "OpenAI API key should start with 'sk-'"
+            )
             self.assertTrue(len(self.api_key) > 20, "OpenAI API key seems too short")
 
-    @patch("main.utils.image_processor.OpenAIClient")
+    @patch("main.utils.image_llama.OpenAIClient")
     def test_gpt4_vision_endpoint(self, mock_openai_client: MagicMock) -> None:
         """Test GPT-4 Vision API endpoint."""
         # Mock successful response
@@ -91,7 +93,7 @@ class TestOpenAIAPI(TestCase):
         except Exception as e:
             self.fail(f"Failed to decode base64 image: {str(e)}")
 
-    @patch("main.utils.image_processor.OpenAIClient")
+    @patch("main.utils.image_llama.OpenAIClient")
     def test_error_handling(self, mock_openai_client: MagicMock) -> None:
         """Test error handling in GPT-4 Vision API calls."""
         # Mock error response

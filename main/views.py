@@ -9,6 +9,7 @@ import glob
 import json
 import os
 import shutil
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,11 @@ from django.contrib.auth.models import User
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_http_methods
+
+from main.models import Document, Image
+from main.utils.document_processor import DocumentProcessor
+from main.utils.image_processor import ImageProcessor
 
 from .models import DocumentBatch, ProcessedDocument
 from .utils.doc_classic import DocClassicProcessor
@@ -149,7 +155,7 @@ def image_llama(request: HttpRequest) -> HttpResponse:
         request: The HTTP request object.
 
     Returns:
-        The rendered image processing page or redirects to the home page after successful processing.
+        The rendered image processing page or redirects to home after successful processing.
     """
     if request.method == "POST" and request.FILES.get("image"):
         try:
@@ -168,13 +174,7 @@ def image_llama(request: HttpRequest) -> HttpResponse:
                 )
 
             # Save the file temporarily
-            png_directory = os.path.join(
-                settings.BASE_DIR,
-                "main",
-                "static",
-                "images",
-                "png_files"
-            )
+            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
@@ -226,7 +226,7 @@ def image_open(request: HttpRequest) -> HttpResponse:
         request: The HTTP request object.
 
     Returns:
-        The rendered image processing page or redirects to the home page after successful processing.
+        The rendered image processing page or redirects to home after successful processing.
     """
     try:
         if request.method == "POST" and request.FILES.get("image"):
@@ -248,18 +248,12 @@ def image_open(request: HttpRequest) -> HttpResponse:
                 )
 
             # Save the file temporarily
-            png_directory = os.path.join(
-                settings.BASE_DIR,
-                "main",
-                "static",
-                "images",
-                "png_files"
-            )
+            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
-            file_path = os.path.join(png_directory, uploaded_file.name)
-            with open(file_path, "wb+") as destination:
+            image_path = os.path.join(png_directory, str(time.time()) + "_" + uploaded_file.name)
+            with open(image_path, "wb+") as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
 
@@ -267,7 +261,7 @@ def image_open(request: HttpRequest) -> HttpResponse:
             processor = OpenAIImageProcessor()
 
             # Process the image
-            result = processor.analyze_image(file_path)
+            result = processor.analyze_image(image_path)
 
             # Format the response
             response = {
@@ -320,7 +314,7 @@ def image_groq(request: HttpRequest) -> HttpResponse:
         request: The HTTP request object.
 
     Returns:
-        The rendered image processing page or redirects to the home page after successful processing.
+        The rendered image processing page or redirects to home after successful processing.
     """
     import logging
     import os
@@ -343,29 +337,23 @@ def image_groq(request: HttpRequest) -> HttpResponse:
             uploaded_file = request.FILES["image"]
 
             # Save the file temporarily
-            png_directory = os.path.join(
-                settings.BASE_DIR,
-                "main",
-                "static",
-                "images",
-                "png_files"
-            )
+            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
-            file_path = os.path.join(png_directory, uploaded_file.name)
-            with open(file_path, "wb+") as destination:
+            image_path = os.path.join(png_directory, str(time.time()) + "_" + uploaded_file.name)
+            with open(image_path, "wb+") as destination:
                 for chunk in uploaded_file.chunks():
                     destination.write(chunk)
 
             # Process the image
             start_time = time.time()
-            result = processor.process_image(file_path)
+            result = processor.process_image(image_path)
             processing_time = round(time.time() - start_time, 2)
 
             # Clean up the temporary file
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            if os.path.exists(image_path):
+                os.remove(image_path)
 
             # Structure the results
             results = [
@@ -385,11 +373,7 @@ def image_groq(request: HttpRequest) -> HttpResponse:
 
             logger.info(f"Successfully processed {uploaded_file.name}")
 
-            return render(
-                request,
-                "main/admin/image_groq.html",
-                {"results": results}
-            )
+            return render(request, "main/admin/image_groq.html", {"results": results})
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}", exc_info=True)
@@ -406,7 +390,7 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
         request: The HTTP request object.
 
     Returns:
-        The rendered document processing page or redirects to the home page after successful processing.
+        The rendered document processing page or redirects to home after successful processing.
     """
     results = []
     if request.method == "POST":
@@ -421,8 +405,8 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
 
                 # Save uploaded files to temp directory
                 for document in documents:
-                    file_path = os.path.join(temp_dir, document.name)
-                    with open(file_path, "wb+") as destination:
+                    doc_path = os.path.join(temp_dir, str(time.time()) + "_" + document.name)
+                    with open(doc_path, "wb+") as destination:
                         for chunk in document.chunks():
                             destination.write(chunk)
 
@@ -449,7 +433,10 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
 
                 messages.success(
                     request,
-                    f"Successfully processed {batch_result['successful']} out of {batch_result['total_documents']} documents. Batch ID: {batch_result['batch_id']}",
+                    f"Successfully processed {batch_result['successful']} out of "
+                    f"{batch_result['total_documents']} documents. "
+                    f"Batch ID: {batch_result['batch_id']}",
+                    extra_tags="long-message",
                 )
 
                 # Clean up temp directory
@@ -460,10 +447,10 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
                 document = request.FILES["document"]
                 temp_dir = os.path.join(settings.MEDIA_ROOT, "temp", str(uuid.uuid4()))
                 os.makedirs(temp_dir, exist_ok=True)
-                file_path = os.path.join(temp_dir, document.name)
+                doc_path = os.path.join(temp_dir, str(time.time()) + "_" + document.name)
 
                 # Save file temporarily
-                with open(file_path, "wb+") as destination:
+                with open(doc_path, "wb+") as destination:
                     for chunk in document.chunks():
                         destination.write(chunk)
 
@@ -557,8 +544,12 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
         try:
             batch = DocumentBatch.objects.get(id=batch_id)
             if batch.user != request.user and not request.user.is_staff:
-                messages.error(request, "You don't have permission to delete this batch.")
-                return redirect("view_document_batches")
+                messages.error(
+                    request,
+                    "You do not have permission to access this page. "
+                    "Please contact an administrator.",
+                )
+                return redirect("main:home")
 
             # Delete associated documents first
             documents = ProcessedDocument.objects.filter(batch=batch)
@@ -649,3 +640,90 @@ def semantic_search(request: HttpRequest) -> HttpResponse:
                 context["error"] = f"Error performing search: {str(e)}"
 
     return render(request, "main/user/embed_open.html", context)
+
+
+@staff_member_required
+def upload_file(request: HttpRequest) -> HttpResponse:
+    """Handle file upload.
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        The rendered file upload page or redirects to the home page after successful upload.
+    """
+    if request.method == "POST":
+        # Get the uploaded file
+        uploaded_file = request.FILES.get("file")
+        if not uploaded_file:
+            messages.error(request, "No file was uploaded.")
+            return redirect("upload")
+
+        # Check file type
+        file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+        if file_ext not in [".jpg", ".jpeg", ".png", ".pdf"]:
+            messages.error(request, "Invalid file type. Please upload a JPG, PNG, or PDF file.")
+            return redirect("upload")
+
+        # Create a unique filename
+        filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(settings.MEDIA_ROOT, "uploads", str(request.user.id), filename)
+
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        # Save the file
+        with open(file_path, "wb+") as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        messages.success(request, "File uploaded successfully!")
+        return redirect("home")
+
+    return render(request, "main/admin/upload_file.html")
+
+
+def process_document(request: HttpRequest, document_id: int) -> JsonResponse:
+    """Process a document and return embedding results."""
+    try:
+        doc = get_object_or_404(Document, id=document_id)
+        proc = DocumentProcessor()
+        result = proc.process_document(doc)
+        return JsonResponse({"status": "success", "result": result})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+def process_image(request: HttpRequest, image_id: int) -> JsonResponse:
+    """Process an image and return analysis results."""
+    try:
+        img = get_object_or_404(Image, id=image_id)
+        proc = ImageProcessor()
+        result = proc.process_image(img)
+        return JsonResponse({"status": "success", "result": result})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+def process_image_batch(request: HttpRequest) -> JsonResponse:
+    """Process multiple images and return analysis results."""
+    try:
+        img_ids = json.loads(request.body)["image_ids"]
+        images = Image.objects.filter(id__in=img_ids)
+        proc = ImageProcessor()
+        results = proc.process_image_batch(images)
+        return JsonResponse({"status": "success", "results": results})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+def process_image_with_text(request: HttpRequest, image_id: int) -> JsonResponse:
+    """Process an image with text prompt and return analysis results."""
+    try:
+        img = get_object_or_404(Image, id=image_id)
+        text = json.loads(request.body)["text"]
+        proc = ImageProcessor()
+        result = proc.process_image_with_text(img, text)
+        return JsonResponse({"status": "success", "result": result})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

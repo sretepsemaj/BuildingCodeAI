@@ -11,7 +11,10 @@ from PIL import Image
 
 
 class LlamaImageProcessor:
-    def __init__(self):
+    """A class for processing images using the Llama API."""
+
+    def __init__(self) -> None:
+        """Initialize the LlamaImageProcessor."""
         # Load environment variables
         load_dotenv()
         self.api_key = os.getenv("LAMA_API_KEY")

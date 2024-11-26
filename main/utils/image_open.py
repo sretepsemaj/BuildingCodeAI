@@ -10,7 +10,10 @@ from PIL import Image
 
 
 class OpenAIImageProcessor:
-    def __init__(self):
+    """A class for processing images using the OpenAI API."""
+
+    def __init__(self) -> None:
+        """Initialize the OpenAIImageProcessor."""
         # Get API key from Django settings
         self.api_key = settings.OPEN_API_KEY
         if not self.api_key:

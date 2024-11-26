@@ -8,7 +8,7 @@ from main.models import DocumentBatch, ProcessedDocument
 from main.utils.embed_open import DocumentEmbedder
 
 
-def test_document_embeddings():
+def test_document_embeddings() -> None:
     """Test document embedding functionality"""
     print("Starting test_document_embeddings...", file=sys.stderr)
 

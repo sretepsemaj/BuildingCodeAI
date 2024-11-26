@@ -12,7 +12,9 @@ load_dotenv()
 
 
 class EmailTests(TestCase):
-    def setUp(self):
+    """Test cases for email functionality."""
+
+    def setUp(self) -> None:
         """Set up test data"""
         self.user = User.objects.create_user(
             username="testuser",
@@ -20,7 +22,7 @@ class EmailTests(TestCase):
             password="testpass123",
         )
 
-    def test_email_settings(self):
+    def test_email_settings(self) -> None:
         """Test email settings are configured correctly"""
         # Compare settings with .env values
         self.assertEqual(settings.EMAIL_HOST, os.getenv("EMAIL_HOST"))
@@ -28,7 +30,7 @@ class EmailTests(TestCase):
         self.assertEqual(settings.EMAIL_HOST_USER, os.getenv("EMAIL_HOST_USER"))
         self.assertEqual(settings.DEFAULT_FROM_EMAIL, os.getenv("DEFAULT_FROM_EMAIL"))
 
-    def test_send_email(self):
+    def test_send_email(self) -> None:
         """Test sending an email"""
         # Send test email using .env values
         subject = "Test Email"

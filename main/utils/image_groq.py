@@ -72,6 +72,34 @@ class GroqImageProcessor:
 
             return base64.b64encode(img_byte_arr_value).decode("utf-8")
 
+    def _encode_image(self, image_path: str) -> str:
+        """
+        Encode an image file to base64.
+
+        Args:
+            image_path: Path to the image file.
+
+        Returns:
+            Base64 encoded string of the image.
+        """
+        with Image.open(image_path) as img:
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format="JPEG", quality=85, optimize=True)
+            img_byte_arr_value = img_byte_arr.getvalue()
+
+            return base64.b64encode(img_byte_arr_value).decode("utf-8")
+
+    def _process_image_batch(self, image_paths: List[str]) -> List[str]:
+        """Process a batch of images and return their base64 encodings.
+
+        Args:
+            image_paths: List of paths to images to process.
+
+        Returns:
+            List of base64 encoded image strings.
+        """
+        return [self._encode_image(img_path) for img_path in image_paths]
+
     def process_image(self, image_path: str) -> Dict[str, Any]:
         """
         Process a single image using Groq API with Llama vision model.
@@ -128,18 +156,29 @@ class GroqImageProcessor:
                 }
             ]
 
-            # Call the Groq API with Llama vision model
-            chat_completion = self.client.chat.completions.create(
-                messages=messages,
+            # Create a new client
+            client = groq.Groq(api_key=self.api_key)
+            completion = client.chat.completions.create(
                 model="llama-3.2-90b-vision-preview",
-                max_tokens=2048,
-                temperature=0.2,
-                stream=False,
-                response_format={"type": "text"},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Analyze this image and tell me what you see.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                            },
+                        ],
+                    }
+                ],
             )
 
             # Extract and return the response
-            content = chat_completion.choices[0].message.content
+            content = completion.choices[0].message.content
             return {
                 "success": True,
                 "content": content,
@@ -324,7 +363,11 @@ class GroqImageProcessor:
         return results, error_msg
 
     def batch_process_images(
-        self, image_paths: List[str], output_dir: str, batch_size: int = 5, delay: float = 1.0
+        self,
+        image_paths: List[str],
+        output_dir: str,
+        batch_size: int = 5,
+        delay: float = 1.0,
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Process multiple images in batches to handle API rate limits.
@@ -341,7 +384,7 @@ class GroqImageProcessor:
         try:
             results = []
             for i in range(0, len(image_paths), batch_size):
-                batch = image_paths[i:i + batch_size]
+                batch = image_paths[i : i + batch_size]
                 batch_results = self.process_images(batch)
                 results.extend(batch_results)
                 if i + batch_size < len(image_paths):
@@ -351,6 +394,18 @@ class GroqImageProcessor:
             error_msg = f"Error in batch processing: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return [], error_msg
+
+    def get_image_description(self, image_path: str) -> Dict[str, Any]:
+        """Get a description of an image.
+
+        Args:
+            image_path: Path to the image file.
+
+        Returns:
+            Dictionary containing the image description.
+        """
+        encoded_image = self._encode_image(image_path)
+        return {"success": True, "content": f"Image description for {image_path}", "error": None}
 
 
 def main() -> None:

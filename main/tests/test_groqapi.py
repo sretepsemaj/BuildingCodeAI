@@ -59,13 +59,7 @@ class TestGroqAPI(TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "choices": [
-                {
-                    "message": {
-                        "content": "Test image analysis result"
-                    }
-                }
-            ]
+            "choices": [{"message": {"content": "Test image analysis result"}}]
         }
         mock_groq_class.return_value.chat.completions.create.return_value = mock_response
 
@@ -110,11 +104,7 @@ class TestGroqAPI(TestCase):
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "choices": [
-                {
-                    "message": {
-                        "content": '{"objects": ["test"], "description": "test image"}'
-                    }
-                }
+                {"message": {"content": '{"objects": ["test"], "description": "test image"}'}}
             ]
         }
         mock_groq_class.return_value.chat.completions.create.return_value = mock_response
@@ -127,11 +117,17 @@ class TestGroqAPI(TestCase):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "What's in this image?"},
+                        {
+                            "type": "text",
+                            "text": "What's in this image?",
+                        },
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/LPU-v1-die.jpg"
+                                "url": (
+                                    "https://upload.wikimedia.org/wikipedia/commons/"
+                                    "f/f2/LPU-v1-die.jpg"
+                                )
                             },
                         },
                     ],
@@ -160,11 +156,7 @@ class TestGroqAPI(TestCase):
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "choices": [
-                {
-                    "message": {
-                        "content": '{"objects": ["test"], "description": "test image"}'
-                    }
-                }
+                {"message": {"content": '{"objects": ["test"], "description": "test image"}'}}
             ]
         }
         mock_groq_class.return_value.chat.completions.create.return_value = mock_response
@@ -184,7 +176,10 @@ class TestGroqAPI(TestCase):
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": "https://upload.wikimedia.org/wikipedia/commons/d/da/SF_From_Marin_Highlands3.jpg"
+                                "url": (
+                                    "https://upload.wikimedia.org/wikipedia/commons/"
+                                    "d/da/SF_From_Marin_Highlands3.jpg"
+                                )
                             },
                         },
                     ],

@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import uuid
+from typing import Any
 
 import pytesseract
 from django.conf import settings
@@ -14,7 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class DocClassicProcessor:
-    def __init__(self):
+    """A class for processing documents using classic OCR techniques."""
+
+    def __init__(self) -> None:
+        """Initialize the DocClassicProcessor."""
         self.media_root = settings.MEDIA_ROOT
         self.source_dir = os.path.join(self.media_root, "uploads", "doc_classic", str(uuid.uuid4()))
         self.output_dir = os.path.join(
@@ -27,7 +31,7 @@ class DocClassicProcessor:
 
         logger.info("DocClassicProcessor initialized successfully")
 
-    def validate_image(self, file):
+    def validate_image(self, file: Any) -> None:
         """Validate that the file is a valid image."""
         try:
             # Check file size (max 10MB)
@@ -50,13 +54,11 @@ class DocClassicProcessor:
 
             # Clean up temp file
             os.remove(temp_path)
-            return True
-
         except Exception as e:
             logger.error(f"Validation error for {file.name}: {str(e)}")
             raise ValueError(f"File validation failed: {str(e)}")
 
-    def process_single(self, uploaded_file):
+    def process_single(self, uploaded_file: Any) -> dict[str, str]:
         """Process a single uploaded file and return paths to the original and processed files."""
         try:
             # Validate the file first
@@ -123,7 +125,7 @@ class DocClassicProcessor:
             logger.error(f"Error processing {uploaded_file.name}: {str(e)}")
             raise Exception(f"Error processing file: {str(e)}")
 
-    def _extract_text_from_image(self, image_path):
+    def _extract_text_from_image(self, image_path: str) -> str:
         """Extract text from an image using OCR."""
         try:
             image = Image.open(image_path)
@@ -136,7 +138,7 @@ class DocClassicProcessor:
             logger.error(f"Error extracting text from image: {str(e)}")
             raise Exception(f"Error extracting text from image: {str(e)}")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up temporary files and directories."""
         try:
             # Only clean up temporary validation files
@@ -147,7 +149,9 @@ class DocClassicProcessor:
         except Exception as e:
             logger.error(f"Error during cleanup: {str(e)}")
 
-    def process_folder(self, folder_path, batch_name=None, user=None):
+    def process_folder(
+        self, folder_path: str, batch_name: str = None, user: Any = None
+    ) -> dict[str, Any]:
         """Process all image files in a folder and return batch information."""
         try:
             # Create a new batch
@@ -221,7 +225,7 @@ class DocClassicProcessor:
                 batch.save()
             raise Exception(f"Error processing folder: {str(e)}")
 
-    def get_batch_info(self, batch_id):
+    def get_batch_info(self, batch_id: int) -> dict[str, Any]:
         """Get information about a specific batch."""
         try:
             from main.models import DocumentBatch
@@ -250,7 +254,7 @@ class DocClassicProcessor:
             raise Exception(f"Error getting batch info: {str(e)}")
 
 
-def main():
+def main() -> None:
     """Main function to demonstrate usage."""
     processor = DocClassicProcessor()
     # Add code to call process_single and cleanup methods

@@ -8,6 +8,7 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    """Initial migration for creating the database schema."""
 
     initial = True
 
