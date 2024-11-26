@@ -113,81 +113,71 @@ class GroqImageProcessor:
         try:
             base64_image = self.encode_image(image_path)
 
-            # Prepare the messages for the chat completion
+            # Prepare the prompt for the image analysis
+            prompt = (
+                "Analyze this image and provide a detailed description focusing on "
+                "plumbing-related elements, fixtures, and any visible issues."
+            )
+
+            # Format the message for the chat completion
             messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "Analyze this image and provide a structured output following "
-                                "this exact format:\n\n"
-                                "TITLE:\n"
-                                "[Document or table title]\n\n"
-                                "DOCUMENT_TYPE:\n"
-                                "[Type of document: Table, Form, Diagram, Chart, etc.]\n\n"
-                                "MAIN_CONTENT:\n"
-                                "[Main content in a clear, structured format]\n\n"
-                                "TABLE_DATA:\n"
-                                "Headers:\n"
-                                "- [List all column headers]\n"
-                                "Rows:\n"
-                                "- [Each row as a structured list]\n"
-                                "- [Format: Column1: value, Column2: value, etc.]\n\n"
-                                "MEASUREMENTS_AND_VALUES:\n"
-                                "- [List all numerical measurements with units]\n"
-                                "- [Format: Measurement_name: value unit]\n\n"
-                                "SPECIFICATIONS:\n"
-                                "- [List all specifications and requirements]\n"
-                                "- [Format: Specification_name: value]\n\n"
-                                "NOTES_AND_EXCEPTIONS:\n"
-                                "- [List any footnotes, exceptions, or special conditions]\n\n"
-                                "RELATIONSHIPS:\n"
-                                "- [Describe relationships between different elements]\n"
-                                "- [Format: Element1 relates to Element2: description]\n"
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                        },
-                    ],
-                }
+                {"role": "system", "content": "You are a professional plumber analyzing images."},
+                {"role": "user", "content": f"{prompt}\n{base64_image}"},
             ]
 
             # Create a new client
             client = groq.Groq(api_key=self.api_key)
             completion = client.chat.completions.create(
                 model="llama-3.2-90b-vision-preview",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Analyze this image and tell me what you see.",
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                            },
-                        ],
-                    }
-                ],
+                messages=messages,
+                temperature=0.1,  # Lower temperature for more consistent output
+                max_tokens=2000,  # Ensure we get detailed responses
             )
 
-            # Extract and return the response
-            content = completion.choices[0].message.content
+            # Extract and structure the response
+            response = completion.choices[0].message.content
+
+            # Process the response to make it more suitable for embedding
+            processed_response = self._process_response_for_embedding(response)
+
             return {
                 "success": True,
-                "content": content,
+                "content": processed_response,
                 "error": None,
             }
 
         except Exception as e:
             logger.error("Error processing image: %s", str(e), exc_info=True)
             return {"success": False, "content": None, "error": str(e)}
+
+    def _process_response_for_embedding(self, response: str) -> str:
+        """Process the LLM response to make it more suitable for embedding.
+
+        Args:
+            response: Raw response from the LLM.
+
+        Returns:
+            Processed response optimized for embedding.
+        """
+        # Split the response into sections
+        sections = response.split("\n\n")
+
+        # Remove any markdown-style headers while keeping the content
+        processed_sections = []
+        for section in sections:
+            # Remove numbered lists (e.g., "1. ", "2. ")
+            section = "\n".join(line.lstrip("123456789. ") for line in section.split("\n"))
+            # Remove section headers (e.g., "OVERVIEW:", "TEXTUAL CONTENT:")
+            section = section.replace(":\n", "\n").replace(":", "")
+            processed_sections.append(section)
+
+        # Join sections with clear separators
+        processed_text = " | ".join(processed_sections)
+
+        # Remove multiple spaces and normalize whitespace
+        processed_text = " ".join(processed_text.split())
+
+        return processed_text
 
     def process_images(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """
@@ -321,8 +311,7 @@ class GroqImageProcessor:
     def process_directory(
         self, input_dir: str, output_dir: str
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
-        """
-        Process all images in a directory and save results.
+        """Process all images in a directory and save results.
 
         Args:
             input_dir: Directory containing images to process
@@ -331,43 +320,31 @@ class GroqImageProcessor:
         Returns:
             Tuple containing list of processing results and optional error message
         """
-        input_path = Path(input_dir)
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        results = []
-        error_msg = None
-
         try:
-            for img_path in input_path.glob("*"):
-                if img_path.suffix.lower() in [".jpg", ".jpeg", ".png"]:
-                    with open(img_path, "rb") as f:
-                        img_bytes = f.read()
-                    result = self.process_image(str(img_path))
-                    results.append(result)
+            # Get list of image files in directory
+            image_paths = []
+            for root, _, files in os.walk(input_dir):
+                for file in files:
+                    if file.lower().endswith((".png", ".jpg", ".jpeg")):
+                        image_paths.append(os.path.join(root, file))
 
-                    # Save individual result
-                    output_file = output_path / f"{img_path.stem}_result.json"
-                    with open(output_file, "w") as f:
-                        json.dump(result, f, indent=2)
+            if not image_paths:
+                return [], "No image files found in directory"
 
-            # Save combined results
-            combined_file = output_path / "combined_results.json"
-            with open(combined_file, "w") as f:
-                json.dump(results, f, indent=2)
+            # Process images in batches
+            results, error = self.batch_process_images(image_paths, output_dir)
+            if error:
+                return [], error
+
+            return results, None
 
         except Exception as e:
             error_msg = f"Error processing directory: {str(e)}"
-            logger.error(error_msg)
-
-        return results, error_msg
+            logger.error(error_msg, exc_info=True)
+            return [], error_msg
 
     def batch_process_images(
-        self,
-        image_paths: List[str],
-        output_dir: str,
-        batch_size: int = 5,
-        delay: float = 1.0,
+        self, image_paths, output_dir, batch_size=5, delay=1.0
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         """
         Process multiple images in batches to handle API rate limits.

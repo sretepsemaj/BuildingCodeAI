@@ -24,18 +24,16 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.views.decorators.http import require_http_methods
+from PIL import Image as PILImage
 
-from main.models import Document, Image
-from main.utils.document_processor import DocumentProcessor
-from main.utils.image_processor import ImageProcessor
-
-from .models import DocumentBatch, ProcessedDocument
+from .models import DocumentBatch, ProcessedDocument, ProcessedImage
 from .utils.doc_classic import DocClassicProcessor
 from .utils.embed_open import DocumentEmbedder
+from .utils.image_groq import GroqImageProcessor
 from .utils.image_llama import LlamaImageProcessor
 from .utils.image_open import OpenAIImageProcessor
+from .utils.image_processor import ImageProcessor
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -382,6 +380,14 @@ def image_groq(request: HttpRequest) -> HttpResponse:
     return render(request, "main/admin/image_groq.html", {"results": results})
 
 
+def _encode_image(image_path: str) -> str:
+    """Encode an image to base64."""
+    with PILImage.open(image_path) as img:
+        # Convert to RGB if necessary
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+
 @staff_member_required
 def process_doc_classic(request: HttpRequest) -> HttpResponse:
     """Handle document processing using DocClassicProcessor.
@@ -549,7 +555,7 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
                     "You do not have permission to access this page. "
                     "Please contact an administrator.",
                 )
-                return redirect("main:home")
+                return redirect("home")
 
             # Delete associated documents first
             documents = ProcessedDocument.objects.filter(batch=batch)
@@ -584,7 +590,7 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
             print(f"Error in delete_batch: {e}")
             messages.error(request, f"Error deleting batch: {str(e)}")
 
-    return redirect("view_document_batches")
+    return redirect("doc_batches")
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:
@@ -686,9 +692,9 @@ def upload_file(request: HttpRequest) -> HttpResponse:
 def process_document(request: HttpRequest, document_id: int) -> JsonResponse:
     """Process a document and return embedding results."""
     try:
-        doc = get_object_or_404(Document, id=document_id)
-        proc = DocumentProcessor()
-        result = proc.process_document(doc)
+        doc = get_object_or_404(ProcessedDocument, id=document_id)
+        proc = DocClassicProcessor()
+        result = proc.process_document(doc.original_path)
         return JsonResponse({"status": "success", "result": result})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
@@ -697,21 +703,28 @@ def process_document(request: HttpRequest, document_id: int) -> JsonResponse:
 def process_image(request: HttpRequest, image_id: int) -> JsonResponse:
     """Process an image and return analysis results."""
     try:
-        img = get_object_or_404(Image, id=image_id)
-        proc = ImageProcessor()
-        result = proc.process_image(img)
-        return JsonResponse({"status": "success", "result": result})
+        from .models import ProcessedImage
+        from .utils.image_processor import ImageProcessor
+
+        image = ProcessedImage.objects.get(id=image_id)
+        processor = ImageProcessor()
+        result = processor.process_image(image.image.path)
+        return JsonResponse({"success": True, "result": result})
     except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+        return JsonResponse({"success": False, "error": str(e)})
 
 
 def process_image_batch(request: HttpRequest) -> JsonResponse:
     """Process multiple images and return analysis results."""
     try:
         img_ids = json.loads(request.body)["image_ids"]
-        images = Image.objects.filter(id__in=img_ids)
-        proc = ImageProcessor()
-        results = proc.process_image_batch(images)
+        image_paths = []
+        for img_id in img_ids:
+            image_path = os.path.join(settings.MEDIA_ROOT, "images", f"{img_id}.png")
+            if os.path.exists(image_path):
+                image_paths.append(image_path)
+        proc = GroqImageProcessor()
+        results = proc.process_image_batch(image_paths)
         return JsonResponse({"status": "success", "results": results})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
@@ -720,10 +733,12 @@ def process_image_batch(request: HttpRequest) -> JsonResponse:
 def process_image_with_text(request: HttpRequest, image_id: int) -> JsonResponse:
     """Process an image with text prompt and return analysis results."""
     try:
-        img = get_object_or_404(Image, id=image_id)
+        image_path = os.path.join(settings.MEDIA_ROOT, "images", f"{image_id}.png")
+        if not os.path.exists(image_path):
+            return JsonResponse({"status": "error", "message": "Image not found"}, status=404)
         text = json.loads(request.body)["text"]
-        proc = ImageProcessor()
-        result = proc.process_image_with_text(img, text)
+        proc = GroqImageProcessor()
+        result = proc.process_image_with_text(image_path, text)
         return JsonResponse({"status": "success", "result": result})
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)

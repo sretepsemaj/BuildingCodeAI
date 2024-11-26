@@ -4,9 +4,10 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
+from django.conf import settings
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -17,7 +18,7 @@ load_dotenv()
 class DocumentEmbedder:
     """A class for creating and managing document embeddings using OpenAI's API."""
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: Optional[str] = None):
         """Initialize the DocumentEmbedder with OpenAI API key.
 
         Args:
@@ -26,22 +27,25 @@ class DocumentEmbedder:
         Raises:
             ValueError: If no API key is provided and not found in environment.
         """
-        if api_key is None:
-            api_key = os.getenv("OPEN_API_KEY")
-            if not api_key:
-                raise ValueError("No API key provided and OPEN_API_KEY not found in environment")
+        if api_key:
+            self.api_key = api_key
+        else:
+            self.api_key = os.getenv("OPENAI_API_KEY")
+            if not self.api_key:
+                raise ValueError("No API key provided and OPENAI_API_KEY not found in environment")
 
         self.client = OpenAI(api_key=api_key)
         self.model = "text-embedding-ada-002"
         self.embedding_dim = 1536  # Dimension of ada-002 embeddings
+        self.chunk_size = 4097  # Maximum chunk size for text embedding
 
-    def get_embedding(self, text: str) -> list[float]:
+    def get_embedding(self, text: str) -> List[float]:
         """Get embedding for a given text."""
         response = self.client.embeddings.create(input=text, model=self.model)
         return response.data[0].embedding
 
     def get_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Get embeddings for a list of texts.
+        """Get embeddings for multiple texts.
 
         Args:
             texts: List of texts to get embeddings for.
@@ -51,89 +55,125 @@ class DocumentEmbedder:
         """
         embeddings = []
         for text in texts:
-            embeddings.append(self.get_embedding(text))
+            embedding = self.get_embedding(text)
+            embeddings.append(embedding)
+        return embeddings
+
+    def get_embeddings_batch(
+        self, texts: List[str], batch_size: int = 20, delay: float = 0.1
+    ) -> List[List[float]]:
+        """Get embeddings for texts in batches to handle rate limits.
+
+        Args:
+            texts: List of texts to get embeddings for.
+            batch_size: Number of texts to process in each batch.
+            delay: Delay between batches in seconds.
+
+        Returns:
+            List of embeddings, one for each input text.
+        """
+        embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            batch_embeddings = self.get_embeddings(batch)
+            embeddings.extend(batch_embeddings)
+            if i + batch_size < len(texts):
+                time.sleep(delay)
         return embeddings
 
     def create_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Create embeddings for a batch of texts.
 
         Args:
-            texts: List of texts to create embeddings for.
+            texts: List of texts to get embeddings for.
 
         Returns:
             List of embeddings, one for each input text.
         """
         embeddings = []
-        batch_size = 20  # Process in smaller batches to avoid rate limits
-
-        for batch in self._batch_texts(texts, batch_size):
-            batch_num = texts.index(batch[0]) // batch_size + 1
-            total_batches = (len(texts) + batch_size - 1) // batch_size
-            print(f"Processing batch {batch_num}/{total_batches}")
-
-            for text in batch:
-                embedding = self.get_embedding(text)
-                if embedding:  # Only add if we got a valid embedding
-                    embeddings.append(embedding)
-
-            if texts.index(batch[0]) + batch_size < len(texts):
-                print("Waiting 1 second before next batch...")
-                time.sleep(1)  # Add delay between batches
-
+        for text in texts:
+            embedding = self.get_embedding(text)
+            embeddings.append(embedding)
         return embeddings
 
-    def _batch_texts(self, texts: List[str], batch_size: int) -> List[List[str]]:
+    def process_text_batch(
+        self, texts: List[str], batch_size: int = 20, delay: float = 0.1
+    ) -> List[List[float]]:
+        """Process a batch of texts to create embeddings.
+
+        Args:
+            texts: List of texts to process.
+            batch_size: Number of texts to process in each batch.
+            delay: Delay between batches in seconds.
+
+        Returns:
+            List of embeddings, one for each input text.
+        """
+        embeddings = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            batch_embeddings = self.create_batch_embeddings(batch)
+            embeddings.extend(batch_embeddings)
+            if i + batch_size < len(texts):
+                time.sleep(delay)
+        return embeddings
+
+    def _batch_texts(self, texts, batch_size):
         """Split texts into batches.
 
         Args:
-            texts: List of texts to split.
+            texts: List of texts to split into batches.
             batch_size: Size of each batch.
 
         Returns:
-            List of text batches.
+            List of batches, where each batch is a list of texts.
         """
         batches = []
         for i in range(0, len(texts), batch_size):
-            batches.append(texts[i:i + batch_size])
+            batches.append(texts[i : i + batch_size])
         return batches
 
-    def save_embeddings(
-        self,
-        embeddings: List[List[float]],
-        metadata: List[Dict[str, Any]],
-        output_file: str,
-    ) -> None:
-        """Save embeddings and metadata to a file."""
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = os.path.join(os.path.dirname(output_file), f"embeddings_{timestamp}.json")
+    def save_embeddings(self, embeddings, metadata, output_dir, filename="embeddings.json"):
+        """Save embeddings and metadata to a JSON file.
+
+        Args:
+            embeddings: List of embeddings to save.
+            metadata: List of metadata for each embedding.
+            output_dir: Directory to save the file in.
+            filename: Name of the output file.
+
+        Returns:
+            Path to the saved file.
+        """
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, filename)
 
         data = {
             "embeddings": embeddings,
             "metadata": metadata,
-            "model": self.model,
-            "dimension": self.embedding_dim,
-            "created_at": timestamp,
+            "created_at": datetime.now().isoformat(),
         }
 
-        with open(output_file, "w") as f:
-            json.dump(data, f)
+        with open(output_path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        return output_path
 
     def load_embeddings(self, filepath: str) -> Dict[str, Any]:
         """Load embeddings from a file.
 
         Args:
-            filepath: Path to the file containing the embeddings.
+            filepath: Path to the embeddings file.
 
         Returns:
-            Dictionary containing the loaded embeddings and metadata.
+            Dictionary containing embeddings and metadata.
         """
-        with open(filepath, "r") as f:
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"File not found: {filepath}")
+
+        with open(filepath) as f:
             data = json.load(f)
-        print(
-            "Successfully loaded embeddings from file. "
-            f"Found {len(data['embeddings'])} embeddings."
-        )
+
         return data
 
     def compute_similarity(
@@ -142,11 +182,11 @@ class DocumentEmbedder:
         """Compute cosine similarity between query and documents.
 
         Args:
-            query_embedding: List of floats representing the query embedding vector.
-            document_embeddings: List of lists of floats representing the document embedding vectors.
+            query_embedding: Query embedding vector.
+            document_embeddings: Document embedding vectors.
 
         Returns:
-            List of floats representing the similarity scores.
+            List of similarity scores.
         """
         query_embedding = np.array(query_embedding)
         document_embeddings = np.array(document_embeddings)
@@ -216,3 +256,28 @@ class DocumentEmbedder:
         # Get embeddings
         response = self.client.embeddings.create(input=content, model=self.model)
         return response.data[0].embedding
+
+    def load_document(self, document) -> List[List[float]]:
+        """Load a document and return its embeddings.
+
+        Args:
+            document: Document object containing the text path.
+
+        Returns:
+            List of embeddings for each chunk of the document.
+        """
+        # Extract text from the document
+        text_path = os.path.join(settings.MEDIA_ROOT, document.text_path.lstrip("/"))
+        with open(text_path) as f:
+            text = f.read()
+
+        # Split text into chunks for embedding
+        text_chunks = [text[i : i + self.chunk_size] for i in range(0, len(text), self.chunk_size)]
+
+        # Get embeddings for each chunk
+        embeddings = []
+        for chunk in text_chunks:
+            embedding = self.get_embedding(chunk)
+            embeddings.append(embedding)
+
+        return embeddings

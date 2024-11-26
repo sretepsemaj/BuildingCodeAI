@@ -19,7 +19,7 @@ def media_url(file_path: str) -> str:
         str: The media URL for the file.
     """
     if file_path.startswith(settings.MEDIA_ROOT):
-        file_path = file_path[len(settings.MEDIA_ROOT):].lstrip(os.sep)
+        file_path = file_path[len(settings.MEDIA_ROOT)].lstrip(os.sep)
 
     # Ensure the path starts with MEDIA_URL
     return os.path.join(settings.MEDIA_URL, file_path)
