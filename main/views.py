@@ -11,6 +11,10 @@ from .utils.doc_classic import DocClassicProcessor
 import uuid
 import shutil
 from .models import ProcessedDocument, DocumentBatch
+from .utils.embed_open import DocumentEmbedder
+import os
+from pathlib import Path
+import glob
 
 def home(request):
     return render(request, "main/home.html")
@@ -160,12 +164,13 @@ def image_open(request):
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'results': [{
                     'filename': uploaded_file.name,
-                    'success': True,
+                    'success': result['success'],
                     'data': {
-                        'table_summary': result['analysis'],
+                        'table_summary': '',
                         'table_headers': [],
                         'table_data': []
-                    }
+                    },
+                    'analysis': result['analysis']  # Add the analysis directly to the result
                 }]
             }
             
@@ -173,8 +178,7 @@ def image_open(request):
             print("Response data:", response)
             
             return render(request, 'main/image_open.html', {
-                'results': response['results'],  # Pass results directly
-                'png_directory': png_directory.replace(str(settings.BASE_DIR), '').lstrip('/')
+                'results': response['results']
             })
             
         # If no file uploaded, just show the form
@@ -408,3 +412,36 @@ def logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect("home")
+
+
+@login_required
+def semantic_search(request):
+    """View for semantic search using document embeddings."""
+    context = {}
+    
+    if request.method == 'POST':
+        query = request.POST.get('query')
+        if query:
+            try:
+                # Initialize embedder
+                embedder = DocumentEmbedder()
+                
+                # Find the latest embeddings file
+                embeddings_dir = os.path.join(settings.MEDIA_ROOT, 'embeddings')
+                embedding_files = glob.glob(os.path.join(embeddings_dir, 'embeddings_*.json'))
+                if not embedding_files:
+                    raise FileNotFoundError("No embedding files found")
+                
+                latest_embedding_file = max(embedding_files, key=os.path.getctime)
+                
+                # Load embeddings and perform search
+                embeddings_data = embedder.load_embeddings(latest_embedding_file)
+                results = embedder.search_documents(query, embeddings_data, top_k=5)
+                
+                context['results'] = results
+                context['query'] = query
+                
+            except Exception as e:
+                context['error'] = f"Error performing search: {str(e)}"
+    
+    return render(request, 'main/embed_open.html', context)

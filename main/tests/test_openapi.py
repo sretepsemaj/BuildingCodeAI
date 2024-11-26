@@ -10,7 +10,7 @@ from main.utils.image_processor import LlamaImageProcessor
 class TestOpenAIAPI(TestCase):
     def setUp(self):
         """Set up test environment variables and test files"""
-        self.api_key = os.getenv('MYSK_API_KEY')
+        self.api_key = os.getenv('OPEN_API_KEY')
         self.test_image_path = os.path.join(settings.BASE_DIR, 'main/tests/test_files/test_image.png')
         
         # Ensure test directory exists
@@ -28,7 +28,7 @@ class TestOpenAIAPI(TestCase):
 
     def test_api_key_exists(self):
         """Test that the OpenAI API key is properly set"""
-        self.assertIsNotNone(self.api_key, "MYSK_API_KEY environment variable is not set")
+        self.assertIsNotNone(self.api_key, "OPEN_API_KEY environment variable is not set")
 
     def test_api_key_valid_format(self):
         """Test that the API key follows OpenAI's format"""

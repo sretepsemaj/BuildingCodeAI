@@ -161,3 +161,19 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# API Keys Configuration
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+MYSK_API_KEY = os.getenv('OPENAI_API_KEY')  # Use the same key for MYSK
+PLEX_API_KEY = os.getenv('PLEX_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+HUGG_API_KEY = os.getenv('HUGG_API_KEY')
+NEWS_API_KEY = os.getenv('NEWS_API_KEY')
+PINE_API_KEY = os.getenv('PINE_API_KEY')
+TUBE_API_KEY = os.getenv('TUBE_API_KEY')
+LAMA_API_KEY = os.getenv('LAMA_API_KEY')
+
+# API URLs
+HUGG_API_URL = os.getenv('HUGG_API_URL')
+PLEX_API_URL = os.getenv('PLEX_API_URL')
+PINE_ENVIRONMENT = os.getenv('PINE_ENVIRONMENT')

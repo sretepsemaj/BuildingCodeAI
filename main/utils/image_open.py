@@ -5,18 +5,18 @@ from typing import List, Dict
 from openai import OpenAI
 from PIL import Image
 import io
+from django.conf import settings
 
 class OpenAIImageProcessor:
     def __init__(self):
-        # Load environment variables
-        load_dotenv()
-        self.api_key = os.getenv('MYSK_API_KEY')
+        # Get API key from Django settings
+        self.api_key = settings.OPEN_API_KEY
         if not self.api_key:
-            raise ValueError("MYSK_API_KEY not found in environment variables")
+            raise ValueError("OPEN_API_KEY not found in environment variables")
         print(f"Using OpenAI API key: {self.api_key[:8]}...")
         
         # Initialize OpenAI client
-        self.vision_client = OpenAI(api_key=self.api_key)
+        self.client = OpenAI(api_key=self.api_key)
 
     def encode_image(self, image_path: str) -> str:
         """Encode image to base64 for API submission"""
@@ -27,7 +27,7 @@ class OpenAIImageProcessor:
             raise Exception(f"Error encoding image: {str(e)}")
 
     def analyze_image(self, image_path: str) -> dict:
-        """Analyze image using GPT-4 with vision capabilities"""
+        """Analyze image using GPT-4 Vision"""
         try:
             if not os.path.exists(image_path):
                 return {
@@ -38,14 +38,13 @@ class OpenAIImageProcessor:
 
             print(f"\nAnalyzing image: {os.path.basename(image_path)}")
             print("1. Reading and encoding image...")
-            # Encode the image
             base64_image = self.encode_image(image_path)
             print("2. Image encoded successfully")
             
             try:
                 print("3. Making API request...")
-                response = self.vision_client.chat.completions.create(
-                    model="gpt-4o",  # Using GPT-4o which supports multimodal (text + image) input
+                response = self.client.chat.completions.create(
+                    model="gpt-4o-mini",  # Using the mini model for vision capabilities
                     messages=[
                         {
                             "role": "user",
@@ -59,28 +58,28 @@ class OpenAIImageProcessor:
 4. Any trends or patterns visible
 5. Text content and labels
 6. Color schemes and their significance
-7. Overall purpose or message of the image
-
-Please provide a comprehensive analysis with specific details and numbers where available."""
+7. Overall purpose or message of the image"""
                                 },
                                 {
                                     "type": "image_url",
                                     "image_url": {
-                                        "url": f"data:image/png;base64,{base64_image}",
-                                        "detail": "high"
+                                        "url": f"data:image/png;base64,{base64_image}"
                                     }
                                 }
                             ]
                         }
                     ],
-                    max_tokens=16384  # GPT-4o supports up to 16,384 output tokens
+                    max_tokens=300
                 )
                 print("4. Received API response")
+                
+                analysis = response.choices[0].message.content
+                print(f"Analysis received: {analysis[:100]}...")
                 
                 return {
                     'success': True,
                     'message': 'Image analyzed successfully',
-                    'analysis': response.choices[0].message.content,
+                    'analysis': analysis,
                     'filename': os.path.basename(image_path)
                 }
                 
@@ -93,7 +92,7 @@ Please provide a comprehensive analysis with specific details and numbers where 
                 return {
                     'success': False,
                     'message': f'Error analyzing image with Vision API: {error_msg}',
-                    'analysis': '',
+                    'analysis': f'Error: {error_msg}',
                     'filename': os.path.basename(image_path)
                 }
             
@@ -104,7 +103,7 @@ Please provide a comprehensive analysis with specific details and numbers where 
             return {
                 'success': False,
                 'message': f'Error analyzing image with Vision API: {str(e)}',
-                'analysis': '',
+                'analysis': f'Error: {str(e)}',
                 'filename': os.path.basename(image_path)
             }
 
@@ -157,20 +156,3 @@ Please provide a comprehensive analysis with specific details and numbers where 
             'message': f'Processed {png_files} PNG files',
             'results': results
         }
-
-# Example usage
-if __name__ == "__main__":
-    processor = OpenAIImageProcessor()
-    png_directory = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images/png_files"
-    results = processor.process_directory(png_directory)
-    
-    if results['success']:
-        print(f"\n{results['message']}")
-        for result in results['results']:
-            print(f"\n--- Analysis for {result['filename']} ---")
-            if result['success']:
-                print(result['analysis'])
-            else:
-                print(f"Error: {result['message']}")
-    else:
-        print(f"Error: {results['message']}")

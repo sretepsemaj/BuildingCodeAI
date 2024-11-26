@@ -7,7 +7,7 @@
 <div class="container mt-4">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'view_document_batches' %}">Batches</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'doc_batches' %}">Batches</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ batch.name|default:batch.id }}</li>
         </ol>
     </nav>

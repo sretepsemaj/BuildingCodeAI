@@ -43,3 +43,17 @@ CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
 
 # Static files - use whitenoise in development too
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
+OPEN_API_KEY = os.getenv('OPEN_API_KEY')  # Use the same key for MYSK
+PLEX_API_KEY = os.getenv('PLEX_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+HUGG_API_KEY = os.getenv('HUGG_API_KEY')
+NEWS_API_KEY = os.getenv('NEWS_API_KEY')
+PINE_API_KEY = os.getenv('PINE_API_KEY')
+TUBE_API_KEY = os.getenv('TUBE_API_KEY')
+LAMA_API_KEY = os.getenv('LAMA_API_KEY')
+
+# API URLs
+HUGG_API_URL = os.getenv('HUGG_API_URL')
+PLEX_API_URL = os.getenv('PLEX_API_URL')
+PINE_ENVIRONMENT = os.getenv('PINE_ENVIRONMENT')
