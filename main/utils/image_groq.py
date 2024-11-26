@@ -39,7 +39,9 @@ class GroqImageProcessor:
             # Open image from binary data
             with BytesIO(image_data) as data, Image.open(data) as img:
                 # Convert to RGB if necessary
-                if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                if img.mode in ("RGBA", "LA") or (
+                    img.mode == "P" and "transparency" in img.info
+                ):
                     bg = Image.new("RGB", img.size, (255, 255, 255))
                     if img.mode == "P":
                         img = img.convert("RGBA")
@@ -62,7 +64,9 @@ class GroqImageProcessor:
 
                 # Get the size in bytes
                 size_in_bytes = buffer.tell()
-                logger.info(f"Image preprocessed. New size: {new_size}, Bytes: {size_in_bytes}")
+                logger.info(
+                    f"Image preprocessed. New size: {new_size}, Bytes: {size_in_bytes}"
+                )
 
                 return buffer.getvalue()
         except Exception as e:
@@ -107,7 +111,9 @@ class GroqImageProcessor:
                             },
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                },
                             },
                         ],
                     }
@@ -187,7 +193,9 @@ class GroqImageProcessor:
                         summary = summary[summary.find("Summary") :].split("\n\n")[0]
                     processed_result["table_summary"] = summary.strip()
 
-                    logger.info(f"Successfully processed image. Result: {processed_result}")
+                    logger.info(
+                        f"Successfully processed image. Result: {processed_result}"
+                    )
                     return processed_result
                 else:
                     logger.error("No content in API response")
@@ -207,9 +215,13 @@ class GroqImageProcessor:
                             try:
                                 # Try to parse the failed_generation as JSON
                                 failed_gen = json.loads(error_data["failed_generation"])
-                                logger.info("Successfully extracted data from failed_generation")
+                                logger.info(
+                                    "Successfully extracted data from failed_generation"
+                                )
                                 return {
-                                    "table_headers": failed_gen.get("table_headers", []),
+                                    "table_headers": failed_gen.get(
+                                        "table_headers", []
+                                    ),
                                     "table_data": failed_gen.get("table_data", []),
                                     "table_summary": failed_gen.get(
                                         "table_summary", "No summary available"

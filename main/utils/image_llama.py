@@ -53,7 +53,9 @@ class LlamaImageProcessor:
 
                     if documents and len(documents) > 0:
                         content = documents[0].text
-                        print(f"Debug: Successfully extracted content, length: {len(content)}")
+                        print(
+                            f"Debug: Successfully extracted content, length: {len(content)}"
+                        )
 
                         # Format the analysis content
                         analysis_content = []
@@ -71,7 +73,9 @@ class LlamaImageProcessor:
                             analysis_content.append("\nPossible reasons:")
                             analysis_content.append("- The image contains no text")
                             analysis_content.append("- The image quality is too low")
-                            analysis_content.append("- The text format is not supported")
+                            analysis_content.append(
+                                "- The text format is not supported"
+                            )
 
                         result = {
                             "success": True,
@@ -121,7 +125,9 @@ class LlamaImageProcessor:
         print(f"\nDebug: Processing directory: {directory_path}")
 
         # Find all PNG files
-        png_files = [f for f in os.listdir(directory_path) if f.lower().endswith(".png")]
+        png_files = [
+            f for f in os.listdir(directory_path) if f.lower().endswith(".png")
+        ]
         print(f"Debug: Found PNG files: {png_files}")
 
         results = []
@@ -156,5 +162,7 @@ class LlamaImageProcessor:
 # Example usage:
 if __name__ == "__main__":
     processor = LlamaImageProcessor()
-    png_directory = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images/png_files"
+    png_directory = (
+        "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images/png_files"
+    )
     results = processor.process_directory(png_directory)

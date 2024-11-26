@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 class DocClassicProcessor:
     def __init__(self):
         self.media_root = settings.MEDIA_ROOT
-        self.source_dir = os.path.join(self.media_root, "uploads", "doc_classic", str(uuid.uuid4()))
+        self.source_dir = os.path.join(
+            self.media_root, "uploads", "doc_classic", str(uuid.uuid4())
+        )
         self.output_dir = os.path.join(
             self.media_root, "processed", "doc_classic", str(uuid.uuid4())
         )
@@ -69,7 +71,9 @@ class DocClassicProcessor:
             full_permanent_dir = os.path.join(
                 settings.MEDIA_ROOT, "uploads", "doc_classic", batch_id
             )
-            full_text_dir = os.path.join(settings.MEDIA_ROOT, "processed", "doc_classic", batch_id)
+            full_text_dir = os.path.join(
+                settings.MEDIA_ROOT, "processed", "doc_classic", batch_id
+            )
 
             os.makedirs(full_permanent_dir, exist_ok=True)
             os.makedirs(full_text_dir, exist_ok=True)
@@ -79,7 +83,9 @@ class DocClassicProcessor:
             relative_original_path = os.path.join(
                 "uploads", "doc_classic", batch_id, original_filename
             )
-            full_original_path = os.path.join(settings.MEDIA_ROOT, relative_original_path)
+            full_original_path = os.path.join(
+                settings.MEDIA_ROOT, relative_original_path
+            )
 
             print(f"Saving file to: {full_original_path}")
 
@@ -94,7 +100,9 @@ class DocClassicProcessor:
 
             # Save the extracted text
             text_filename = os.path.splitext(original_filename)[0] + ".txt"
-            relative_text_path = os.path.join("processed", "doc_classic", batch_id, text_filename)
+            relative_text_path = os.path.join(
+                "processed", "doc_classic", batch_id, text_filename
+            )
             full_text_path = os.path.join(settings.MEDIA_ROOT, relative_text_path)
 
             print(f"Saving text to: {full_text_path}")
@@ -140,7 +148,9 @@ class DocClassicProcessor:
         """Clean up temporary files and directories."""
         try:
             # Only clean up temporary validation files
-            temp_files = [f for f in os.listdir(self.source_dir) if f.startswith("temp_")]
+            temp_files = [
+                f for f in os.listdir(self.source_dir) if f.startswith("temp_")
+            ]
             for f in temp_files:
                 os.remove(os.path.join(self.source_dir, f))
             logger.info("Cleanup complete")
@@ -171,7 +181,9 @@ class DocClassicProcessor:
                     try:
                         # Create a file object from the path
                         with open(file_path, "rb") as f:
-                            from django.core.files.uploadedfile import InMemoryUploadedFile
+                            from django.core.files.uploadedfile import (
+                                InMemoryUploadedFile,
+                            )
 
                             file = InMemoryUploadedFile(
                                 f,

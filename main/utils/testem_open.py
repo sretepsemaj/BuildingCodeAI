@@ -81,7 +81,9 @@ def test_document_embeddings():
             print("\nTop 3 most relevant documents:", file=sys.stderr)
             for i, result in enumerate(results, 1):
                 print(f"\n{i}. {result['metadata']['filename']}", file=sys.stderr)
-                print(f"   Similarity score: {result['similarity']:.4f}", file=sys.stderr)
+                print(
+                    f"   Similarity score: {result['similarity']:.4f}", file=sys.stderr
+                )
                 print(f"   Status: {result['metadata']['status']}", file=sys.stderr)
 
     except DocumentBatch.DoesNotExist:

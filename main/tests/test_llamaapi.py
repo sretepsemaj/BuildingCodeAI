@@ -12,7 +12,9 @@ class TestLlamaAPI(TestCase):
         """Set up test environment variables and test file"""
         self.api_key = os.getenv("LAMA-API-KEY")
         self.base_url = "https://api.cloud.llamaindex.ai/api"
-        self.test_file_path = os.path.join(settings.BASE_DIR, "main/tests/test_files/test.pdf")
+        self.test_file_path = os.path.join(
+            settings.BASE_DIR, "main/tests/test_files/test.pdf"
+        )
 
         # Ensure test directory exists
         os.makedirs(os.path.dirname(self.test_file_path), exist_ok=True)
@@ -24,7 +26,9 @@ class TestLlamaAPI(TestCase):
 
     def test_api_key_exists(self):
         """Test that the API key is properly set"""
-        self.assertIsNotNone(self.api_key, "LAMA-API-KEY environment variable is not set")
+        self.assertIsNotNone(
+            self.api_key, "LAMA-API-KEY environment variable is not set"
+        )
 
     @patch("requests.post")
     def test_upload_file(self, mock_post):

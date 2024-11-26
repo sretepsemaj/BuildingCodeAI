@@ -30,7 +30,9 @@ class TestGroqAPI(TestCase):
 
     def test_api_key_exists(self):
         """Test that the API key is properly set"""
-        self.assertIsNotNone(self.api_key, "GROQ_API_KEY environment variable is not set")
+        self.assertIsNotNone(
+            self.api_key, "GROQ_API_KEY environment variable is not set"
+        )
 
     def encode_image(self, image_path):
         """Helper function to encode image to base64"""
@@ -45,7 +47,9 @@ class TestGroqAPI(TestCase):
         mock_completion.choices = [
             MagicMock(message=MagicMock(content="Test image analysis result"))
         ]
-        mock_groq_class.return_value.chat.completions.create.return_value = mock_completion
+        mock_groq_class.return_value.chat.completions.create.return_value = (
+            mock_completion
+        )
 
         # Encode test image
         base64_image = self.encode_image(self.test_image_path)
@@ -73,7 +77,9 @@ class TestGroqAPI(TestCase):
         # Assert API was called correctly
         mock_groq_class.return_value.chat.completions.create.assert_called_once()
         self.assertIsNotNone(completion.choices[0].message.content)
-        self.assertEqual(completion.choices[0].message.content, "Test image analysis result")
+        self.assertEqual(
+            completion.choices[0].message.content, "Test image analysis result"
+        )
 
     @patch("groq.Groq")
     def test_process_url_image(self, mock_groq_class):
@@ -83,7 +89,9 @@ class TestGroqAPI(TestCase):
         mock_completion.choices = [
             MagicMock(message=MagicMock(content="Test URL image analysis result"))
         ]
-        mock_groq_class.return_value.chat.completions.create.return_value = mock_completion
+        mock_groq_class.return_value.chat.completions.create.return_value = (
+            mock_completion
+        )
 
         # Create Groq client and make request
         client = mock_groq_class(api_key=self.api_key)
@@ -108,7 +116,9 @@ class TestGroqAPI(TestCase):
         # Assert API was called correctly
         mock_groq_class.return_value.chat.completions.create.assert_called_once()
         self.assertIsNotNone(completion.choices[0].message.content)
-        self.assertEqual(completion.choices[0].message.content, "Test URL image analysis result")
+        self.assertEqual(
+            completion.choices[0].message.content, "Test URL image analysis result"
+        )
 
     @patch("groq.Groq")
     def test_json_mode(self, mock_groq_class):
@@ -122,7 +132,9 @@ class TestGroqAPI(TestCase):
                 )
             )
         ]
-        mock_groq_class.return_value.chat.completions.create.return_value = mock_completion
+        mock_groq_class.return_value.chat.completions.create.return_value = (
+            mock_completion
+        )
 
         # Create Groq client and make request
         client = mock_groq_class(api_key=self.api_key)

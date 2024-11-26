@@ -12,9 +12,50 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
+from django.core.exceptions import ImproperlyConfigured
 from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
+
+
+# Environment variable utilities
+def get_env_value(
+    env_variable: str, default: Any = None, required: bool = False
+) -> Any:
+    """Get an environment variable or return its default."""
+    value = os.getenv(env_variable)
+    if value is None and required:
+        raise ImproperlyConfigured(f"Environment variable {env_variable} is required.")
+    return value if value is not None else default
+
+
+def get_bool_env(env_variable: str, default: bool = False) -> bool:
+    """Get a boolean environment variable."""
+    value = get_env_value(env_variable, default=str(default))
+    return value.lower() in ("true", "t", "1", "yes", "y")
+
+
+def get_int_env(env_variable: str, default: int = 0) -> int:
+    """Get an integer environment variable."""
+    value = get_env_value(env_variable, default=default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def get_list_env(
+    env_variable: str, default: List[str] = None, separator: str = ","
+) -> List[str]:
+    """Get a list from an environment variable."""
+    if default is None:
+        default = []
+    value = get_env_value(env_variable)
+    if value is None:
+        return default
+    return [item.strip() for item in value.split(separator) if item.strip()]
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,13 +66,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", get_random_secret_key())
+def generate_secret_key() -> str:
+    """Generate a secure secret key."""
+    key = get_random_secret_key()
+    with open(BASE_DIR / ".secret_key", "w") as f:
+        f.write(key)
+    return key
+
+
+def get_secret_key() -> str:
+    """Get or generate the secret key."""
+    # Try to get from environment
+    key = get_env_value("SECRET_KEY")
+    if key:
+        return key
+
+    # Try to get from file
+    key_file = BASE_DIR / ".secret_key"
+    if key_file.exists():
+        return key_file.read_text().strip()
+
+    # Generate new key
+    return generate_secret_key()
+
+
+SECRET_KEY = get_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = get_bool_env("DEBUG", default=False)
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = get_list_env("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 # Application definition
 
@@ -103,7 +169,10 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": ("django.contrib.auth.password_validation." "UserAttributeSimilarityValidator"),
+        "NAME": (
+            "django.contrib.auth.password_validation."
+            "UserAttributeSimilarityValidator"
+        ),
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
@@ -130,23 +199,27 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-# Media files
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+# Media files (User uploaded files)
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = False  # Don't allow all origins in production
-CORS_ALLOWED_ORIGINS = os.getenv(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"
-).split(",")
+CORS_ALLOWED_ORIGINS = get_list_env(
+    "CORS_ALLOWED_ORIGINS", default=["http://localhost:8000", "http://127.0.0.1:8000"]
+)
 
 # Authentication settings
-LOGIN_REDIRECT_URL = "home"
-LOGOUT_REDIRECT_URL = "home"
+LOGIN_REDIRECT_URL = "/profile/"  # Redirect to profile page after login
+LOGOUT_REDIRECT_URL = "/home/"  # Redirect to home page after logout
 LOGIN_URL = "login"
 
 # Default primary key field type
@@ -156,25 +229,75 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email Configuration
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
-EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_HOST = get_env_value("EMAIL_HOST", "localhost")
+EMAIL_PORT = get_int_env("EMAIL_PORT", 587)
+EMAIL_HOST_USER = get_env_value("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = get_env_value("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = True
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
+DEFAULT_FROM_EMAIL = get_env_value("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 
-# API Keys Configuration
+# Required API Keys - validate on startup
+REQUIRED_API_KEYS = {
+    "OPEN_API_KEY": get_env_value("OPEN_API_KEY", required=True),
+    "GROQ_API_KEY": get_env_value("GROQ_API_KEY", required=True),
+    "PINE_API_KEY": get_env_value("PINE_API_KEY", required=True),
+}
 
-OPEN_API_KEY = os.getenv("OPEN_API_KEY")  # Use the same key for MYSK
-PLEX_API_KEY = os.getenv("PLEX_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-HUGG_API_KEY = os.getenv("HUGG_API_KEY")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-PINE_API_KEY = os.getenv("PINE_API_KEY")
-TUBE_API_KEY = os.getenv("TUBE_API_KEY")
-LAMA_API_KEY = os.getenv("LAMA_API_KEY")
+# Optional API Keys - don't fail if missing
+OPTIONAL_API_KEYS = {
+    "NEWS_API_KEY": get_env_value("NEWS_API_KEY"),
+    "TUBE_API_KEY": get_env_value("TUBE_API_KEY"),
+    "LAMA_API_KEY": get_env_value("LAMA_API_KEY"),
+    "HUGG_API_KEY": get_env_value("HUGG_API_KEY"),
+    "PLEX_API_KEY": get_env_value("PLEX_API_KEY"),
+}
 
-# API URLs
-HUGG_API_URL = os.getenv("HUGG_API_URL")
-PLEX_API_URL = os.getenv("PLEX_API_URL")
-PINE_ENVIRONMENT = os.getenv("PINE_ENVIRONMENT")
+
+# API URLs with validation
+def get_api_url(name: str, default: str) -> str:
+    """Get an API URL with validation."""
+    url = get_env_value(f"{name}_API_URL", default)
+    if not url.startswith(("http://", "https://")):
+        raise ImproperlyConfigured(f"{name}_API_URL must be a valid HTTP(S) URL")
+    return url
+
+
+API_URLS = {
+    "HUGG": get_api_url(
+        "HUGG", "https://api-inference.huggingface.co/models/microsoft/speecht5_tts"
+    ),
+    "PLEX": get_api_url("PLEX", "https://api.perplexity.ai/chat/completions"),
+}
+
+# Logging Configuration
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+    },
+}

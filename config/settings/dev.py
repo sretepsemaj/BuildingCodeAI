@@ -1,9 +1,18 @@
 """Development settings for Django project."""
 
 import os
+import socket
 import sys
 
-from .base import ALLOWED_HOSTS, BASE_DIR, DATABASES, DEBUG, INSTALLED_APPS, MIDDLEWARE
+from .base import (
+    ALLOWED_HOSTS,
+    BASE_DIR,
+    DATABASES,
+    DEBUG,
+    INSTALLED_APPS,
+    MIDDLEWARE,
+    STATIC_URL,
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -13,37 +22,107 @@ SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-development-key")
 
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
-# Debug toolbar settings
-if "test" not in sys.argv:  # Don't load debug toolbar during tests
-    INSTALLED_APPS += ["debug_toolbar"]  # type: ignore
-    MIDDLEWARE.insert(0, "debug_toolbar.middleware.DebugToolbarMiddleware")  # type: ignore
+# Static files configuration
+STATIC_URL = "/static/"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# Internal IPs for debug toolbar
-INTERNAL_IPS = [
-    "127.0.0.1",
+# Development-specific middleware
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add whitenoise for static files
+    *MIDDLEWARE,  # Include all middleware from base settings
 ]
 
-# Debug toolbar configuration
-DEBUG_TOOLBAR_CONFIG = {
-    "SHOW_TOOLBAR_CALLBACK": lambda request: (
-        DEBUG and request.META.get("REMOTE_ADDR", None) in INTERNAL_IPS
-    ),
-    "IS_RUNNING_TESTS": False,
-}
+# Debug toolbar settings
+INTERNAL_IPS = ["127.0.0.1"]
 
-# Database
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Add docker host IP to INTERNAL_IPS if running in Docker
+hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
+INTERNAL_IPS += [".".join(ip.split(".")[:-1] + ["1"]) for ip in ips]
+
+# Add debug toolbar
+if DEBUG:
+    import mimetypes
+
+    mimetypes.add_type("application/javascript", ".js", True)
+
+    INSTALLED_APPS += ["debug_toolbar"]
+    MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
+
+    DEBUG_TOOLBAR_CONFIG = {
+        "SHOW_TOOLBAR_CALLBACK": lambda request: True,
     }
+
+# URL Configuration
+ROOT_URLCONF = "config.urls"
+
+# Development-specific logging
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs/debug.log",
+            "formatter": "verbose",
+        },
+    },
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console", "file"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
 }
 
-# Email backend for development
+# Development-specific database settings
+DATABASES["default"].update(
+    {
+        "CONN_MAX_AGE": 0,  # Disable persistent connections
+        "ATOMIC_REQUESTS": True,  # Wrap each request in a transaction
+        "OPTIONS": {
+            "timeout": 20,  # 20 second timeout
+        },
+    }
+)
+
+# Development-specific template settings
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+            "debug": DEBUG,
+        },
+    }
+]
+
+# Development-specific email settings
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # CORS settings for development
 CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins in development
-
-# Static files - use whitenoise in development too
-STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+CORS_URLS_REGEX = r"^/api/.*$"  # Only allow CORS for API endpoints

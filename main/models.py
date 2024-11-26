@@ -12,7 +12,9 @@ class DocumentBatch(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="document_batches")
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="document_batches"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=20,
@@ -69,11 +71,15 @@ class ProcessedDocument(models.Model):
     """Represents a single processed document."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    batch = models.ForeignKey(DocumentBatch, on_delete=models.CASCADE, related_name="documents")
+    batch = models.ForeignKey(
+        DocumentBatch, on_delete=models.CASCADE, related_name="documents"
+    )
     filename = models.CharField(max_length=255)
     original_path = models.CharField(max_length=255, null=True, blank=True)
     text_path = models.CharField(max_length=255, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[("success", "Success"), ("failed", "Failed")])
+    status = models.CharField(
+        max_length=20, choices=[("success", "Success"), ("failed", "Failed")]
+    )
     error_message = models.TextField(null=True, blank=True)
     processed_at = models.DateTimeField(auto_now_add=True)
 
@@ -121,7 +127,9 @@ class ProcessedDocument(models.Model):
         """Get the extracted text content."""
         try:
             if self.text_path:
-                full_path = os.path.join(settings.MEDIA_ROOT, self.text_path.lstrip("/"))
+                full_path = os.path.join(
+                    settings.MEDIA_ROOT, self.text_path.lstrip("/")
+                )
                 if os.path.exists(full_path):
                     with open(full_path, "r", encoding="utf-8") as f:
                         return f.read()
@@ -134,12 +142,16 @@ class ProcessedDocument(models.Model):
     def delete(self, *args, **kwargs):
         try:
             if self.original_path:
-                full_path = os.path.join(settings.MEDIA_ROOT, self.original_path.lstrip("/"))
+                full_path = os.path.join(
+                    settings.MEDIA_ROOT, self.original_path.lstrip("/")
+                )
                 if os.path.exists(full_path):
                     os.remove(full_path)
 
             if self.text_path:
-                full_path = os.path.join(settings.MEDIA_ROOT, self.text_path.lstrip("/"))
+                full_path = os.path.join(
+                    settings.MEDIA_ROOT, self.text_path.lstrip("/")
+                )
                 if os.path.exists(full_path):
                     os.remove(full_path)
 
