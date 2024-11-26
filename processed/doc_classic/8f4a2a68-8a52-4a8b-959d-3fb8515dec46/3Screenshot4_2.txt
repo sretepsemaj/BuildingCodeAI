@@ -1,8 +1,0 @@
-308.5.1 No-hub type cast iron soil pipe, fittings, and couplings. Intervals of support for no-hub cast iron soil
-pipe, fittings, and couplings shall comply with CISPI 310.
-
-308.5.2 Movement. Piping systems and supports shall be designed to account for thermal expansion and contrac-
-tion, building movement, and seismic conditions.
-
-308.6 Sway bracing. Rigid support sway bracing shall be provided at changes in direction greater than 45 degrees
-(0.79 rad) for pipe sizes 4 inches (102 mm) and larger.
