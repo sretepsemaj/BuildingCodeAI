@@ -10,7 +10,9 @@ from .doc_classic import DocClassicProcessor
 
 
 class TestDocClassicProcessor(unittest.TestCase):
-    def setUp(self):
+    """Test cases for the DocClassicProcessor class."""
+
+    def setUp(self) -> None:
         """Set up test environment before each test."""
         self.processor = DocClassicProcessor()
         self.test_dir = os.path.join(os.path.dirname(__file__), "test_files")
@@ -21,13 +23,13 @@ class TestDocClassicProcessor(unittest.TestCase):
 
         print("\n=== Starting new test ===")
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up after each test."""
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
         print("=== Test completed ===\n")
 
-    def create_test_image(self):
+    def create_test_image(self) -> None:
         """Create a test PNG image with text for OCR testing."""
         # Create a white image with sample text
         width, height = 400, 200
@@ -38,7 +40,7 @@ class TestDocClassicProcessor(unittest.TestCase):
         image.save(self.test_image_path)
         print(f"Created test image at: {self.test_image_path}")
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test if the processor initializes correctly."""
         print("\nTesting initialization...")
         self.assertIsNotNone(self.processor)
@@ -46,7 +48,7 @@ class TestDocClassicProcessor(unittest.TestCase):
         self.assertTrue(os.path.exists(self.processor.destination_dir))
         print("Initialization successful")
 
-    def test_process_single_image(self):
+    def test_process_single_image(self) -> None:
         """Test processing a single image."""
         print("\nTesting single image processing...")
         try:
@@ -68,7 +70,7 @@ class TestDocClassicProcessor(unittest.TestCase):
             print(f"Error in single image processing: {str(e)}")
             raise
 
-    def test_batch_processing(self):
+    def test_batch_processing(self) -> None:
         """Test batch processing of multiple images."""
         print("\nTesting batch processing...")
         try:
@@ -96,7 +98,7 @@ class TestDocClassicProcessor(unittest.TestCase):
             print(f"Error in batch processing: {str(e)}")
             raise
 
-    def test_cleanup(self):
+    def test_cleanup(self) -> None:
         """Test cleanup functionality."""
         print("\nTesting cleanup...")
         try:

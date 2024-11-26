@@ -4,7 +4,8 @@ import time
 from image_open import OpenAIImageProcessor
 
 
-def test_image_analysis():
+def test_image_analysis() -> None:
+    """Test image analysis using OpenAIImageProcessor."""
     # Initialize the processor
     print("\n=== Testing OpenAI Image Analysis ===")
     try:

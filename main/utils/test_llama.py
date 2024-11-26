@@ -5,6 +5,8 @@ from image_llama import LlamaImageProcessor
 
 # ANSI color codes
 class Colors:
+    """ANSI color codes for terminal output."""
+
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKGREEN = "\033[92m"
@@ -14,41 +16,45 @@ class Colors:
     BOLD = "\033[1m"
 
 
-def test_image_processing():
-    # Initialize the processor
-    processor = LlamaImageProcessor()
+class TestLlamaImageProcessor:
+    """Test cases for the LlamaImageProcessor class."""
 
-    # Get the absolute path to the test image
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    test_image = os.path.join(base_dir, "static", "images", "png_files", "6Screenshot3.png")
+    def test_image_processing(self) -> None:
+        """Test image processing using LlamaImageProcessor."""
+        # Initialize the processor
+        processor = LlamaImageProcessor()
 
-    print(f"\n{Colors.HEADER}Testing Image Processing{Colors.ENDC}")
-    print("=" * 50)
+        # Get the absolute path to the test image
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        test_image = os.path.join(base_dir, "static", "images", "png_files", "6Screenshot3.png")
 
-    # Process the image
-    result = processor.convert_png_to_pdf(test_image)
-
-    # Print the result
-    print(f"\n{Colors.BOLD}Processing Result:{Colors.ENDC}")
-    print("=" * 50)
-    success_color = Colors.OKGREEN if result["success"] else Colors.FAIL
-    print(f"{success_color}Success:{Colors.ENDC} {result['success']}")
-    print(f"{Colors.OKBLUE}Message:{Colors.ENDC} {result['message']}")
-    print(f"{Colors.OKBLUE}Status:{Colors.ENDC} {result['status']}")
-
-    if result["success"]:
-        print(f"\n{Colors.BOLD}Content Analysis:{Colors.ENDC}")
+        print(f"\n{Colors.HEADER}Testing Image Processing{Colors.ENDC}")
         print("=" * 50)
-        print(result["analysis"])
 
-        # Print content length statistics
-        content_length = len(result["content"])
-        print(f"\n{Colors.HEADER}Content Statistics:{Colors.ENDC}")
+        # Process the image
+        result = processor.convert_png_to_pdf(test_image)
+
+        # Print the result
+        print(f"\n{Colors.BOLD}Processing Result:{Colors.ENDC}")
         print("=" * 50)
-        print(f"Total characters extracted: {content_length}")
-        print(f"Approximate words: {len(result['content'].split())}")
-        print(f"Number of sections: {result['content'].count('#')}")
+        success_color = Colors.OKGREEN if result["success"] else Colors.FAIL
+        print(f"{success_color}Success:{Colors.ENDC} {result['success']}")
+        print(f"{Colors.OKBLUE}Message:{Colors.ENDC} {result['message']}")
+        print(f"{Colors.OKBLUE}Status:{Colors.ENDC} {result['status']}")
+
+        if result["success"]:
+            print(f"\n{Colors.BOLD}Content Analysis:{Colors.ENDC}")
+            print("=" * 50)
+            print(result["analysis"])
+
+            # Print content length statistics
+            content_length = len(result["content"])
+            print(f"\n{Colors.HEADER}Content Statistics:{Colors.ENDC}")
+            print("=" * 50)
+            print(f"Total characters extracted: {content_length}")
+            print(f"Approximate words: {len(result['content'].split())}")
+            print(f"Number of sections: {result['content'].count('#')}")
 
 
 if __name__ == "__main__":
-    test_image_processing()
+    TestLlamaImageProcessor().test_image_processing()

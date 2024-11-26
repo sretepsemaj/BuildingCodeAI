@@ -8,7 +8,9 @@ from django.test import TestCase
 
 
 class TestLlamaAPI(TestCase):
-    def setUp(self):
+    """Test cases for the Llama API."""
+
+    def setUp(self) -> None:
         """Set up test environment variables and test file"""
         self.api_key = os.getenv("LAMA-API-KEY")
         self.base_url = "https://api.cloud.llamaindex.ai/api"
@@ -22,12 +24,12 @@ class TestLlamaAPI(TestCase):
             with open(self.test_file_path, "w") as f:
                 f.write("Test content for PDF")
 
-    def test_api_key_exists(self):
+    def test_api_key_exists(self) -> None:
         """Test that the API key is properly set"""
         self.assertIsNotNone(self.api_key, "LAMA-API-KEY environment variable is not set")
 
     @patch("requests.post")
-    def test_upload_file(self, mock_post):
+    def test_upload_file(self, mock_post: MagicMock) -> None:
         """Test file upload endpoint"""
         # Mock successful response
         mock_response = MagicMock()
@@ -50,7 +52,7 @@ class TestLlamaAPI(TestCase):
         self.assertIn("job_id", response.json())
 
     @patch("requests.get")
-    def test_check_job_status(self, mock_get):
+    def test_check_job_status(self, mock_get: MagicMock) -> None:
         """Test job status checking endpoint"""
         # Mock successful response
         mock_response = MagicMock()
@@ -72,7 +74,7 @@ class TestLlamaAPI(TestCase):
         self.assertEqual(response.json()["status"], "completed")
 
     @patch("requests.get")
-    def test_get_results_markdown(self, mock_get):
+    def test_get_results_markdown(self, mock_get: MagicMock) -> None:
         """Test getting results in markdown format"""
         # Mock successful response
         mock_response = MagicMock()
@@ -93,7 +95,7 @@ class TestLlamaAPI(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("content", response.json())
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         """Clean up test files"""
         if os.path.exists(self.test_file_path):
             os.remove(self.test_file_path)
