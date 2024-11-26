@@ -1,10 +1,15 @@
+"""Test module for image_groq.py."""
+
 import os
+import unittest
 
 from image_groq import GroqImageProcessor
 
 
 # ANSI color codes
 class Colors:
+    """Class for ANSI color codes."""
+
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKGREEN = "\033[92m"
@@ -14,77 +19,59 @@ class Colors:
     BOLD = "\033[1m"
 
 
-def test_groq_processing():
-    # Initialize the processor
-    processor = GroqImageProcessor()
+class TestGroqImageProcessor(unittest.TestCase):
+    """Test cases for GroqImageProcessor class."""
 
-    # Get the absolute path to the test image
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    test_image = os.path.join(base_dir, "static", "images", "png_files", "6Screenshot3.png")
+    def setUp(self) -> None:
+        """Set up test environment."""
+        self.processor = GroqImageProcessor()
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.test_image = os.path.join(
+            base_dir, "static", "images", "png_files", "6Screenshot4.png"
+        )
 
-    print(f"\n{Colors.HEADER}Testing Groq Image Processing{Colors.ENDC}")
-    print("=" * 50)
+    def test_process_image(self) -> None:
+        """Test processing a single image."""
+        if not os.path.exists(self.test_image):
+            self.skipTest("Test image not found")
 
-    try:
-        # Check if test image exists
-        if not os.path.exists(test_image):
-            print(f"{Colors.FAIL}Error: Test image not found at {test_image}{Colors.ENDC}")
-            print(
-                f"{Colors.WARNING}Make sure you have placed '6Screenshot3.png' in the static/images/png_files/ directory{Colors.ENDC}"
-            )
-            return
+        result = self.processor.process_image(self.test_image)
+        self.assertIsInstance(result, dict)
+        self.assertIn("success", result)
+        self.assertIn("content", result)
 
-        # Process the image
-        print(f"{Colors.OKBLUE}Processing image: {test_image}{Colors.ENDC}")
-        with open(test_image, "rb") as f:
-            image_data = f.read()
-            print(f"{Colors.OKBLUE}Image size: {len(image_data)} bytes{Colors.ENDC}")
-            result = processor.process_image(image_data)
-
-        # Print the result
-        print(f"\n{Colors.BOLD}Processing Result:{Colors.ENDC}")
-        print("=" * 50)
-        success_color = Colors.OKGREEN if result["success"] else Colors.FAIL
-        print(f"{success_color}Success:{Colors.ENDC} {result['success']}")
-        print(f"{Colors.OKBLUE}Message:{Colors.ENDC} {result['message']}")
-        print(f"{Colors.OKBLUE}Status:{Colors.ENDC} {result['status']}")
+        if "error" in result:
+            print(f"{Colors.FAIL}Error:{Colors.ENDC} {result['error']}")
 
         if result["success"]:
             print(f"\n{Colors.BOLD}Content Analysis:{Colors.ENDC}")
             print("=" * 50)
 
-            if "content" in result:
-                content = result["content"]
-                print(f"\n{Colors.HEADER}Extracted Content:{Colors.ENDC}")
-                print("-" * 50)
-                print(content)
+            content = result["content"]
+            print(f"\n{Colors.HEADER}Extracted Content:{Colors.ENDC}")
+            print("-" * 50)
+            print(content)
 
-                # Print content statistics
-                print(f"\n{Colors.HEADER}Content Statistics:{Colors.ENDC}")
-                print("-" * 50)
-                print(f"Total characters: {len(content)}")
-                print(f"Approximate words: {len(content.split())}")
-                print(f"Number of sections: {content.count('#')}")
-                print(
-                    f"Number of tables: {content.count('|') // 2}"
-                )  # Rough estimate of table rows
+            # Print content statistics
+            print(f"\n{Colors.HEADER}Content Statistics:{Colors.ENDC}")
+            print("-" * 50)
+            print(f"Total characters: {len(content)}")
+            print(f"Approximate words: {len(content.split())}")
+            print(f"Number of sections: {content.count('#')}")
+            print(f"Number of tables: {content.count('|') // 2}")  # Rough estimate of table rows
 
-                # Print table information if available
-                if "table_summary" in result:
-                    print(f"\n{Colors.HEADER}Table Summary:{Colors.ENDC}")
-                    print("-" * 50)
-                    print(result["table_summary"])
+    def test_process_directory(self) -> None:
+        """Test processing a directory of images."""
+        test_dir = os.path.join(os.path.dirname(__file__), "..", "static", "test")
+        output_dir = os.path.join(test_dir, "output")
 
-            # Print PDF path if available
-            if "pdf_path" in result:
-                print(f"\n{Colors.HEADER}Generated PDF:{Colors.ENDC}")
-                print("-" * 50)
-                print(f"PDF saved at: {result['pdf_path']}")
+        if not os.path.exists(test_dir):
+            self.skipTest("Test directory not found")
 
-    except Exception as e:
-        print(f"\n{Colors.FAIL}Error during processing:{Colors.ENDC}")
-        print(f"Error: {str(e)}")
+        results, error = self.processor.process_directory(test_dir, output_dir)
+        self.assertIsInstance(results, list)
+        self.assertIsNone(error)
 
 
 if __name__ == "__main__":
-    test_groq_processing()
+    unittest.main()

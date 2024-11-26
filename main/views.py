@@ -158,11 +158,23 @@ def image_llama(request: HttpRequest) -> HttpResponse:
 
             # Check if it's a PNG file
             if not uploaded_file.name.lower().endswith(".png"):
-                messages.error(request, "Please upload a PNG file.")
-                return render(request, "main/admin/image_llama.html")
+                messages.error(
+                    request,
+                    "Please upload a PNG file.",
+                )
+                return render(
+                    request,
+                    "main/admin/image_llama.html",
+                )
 
             # Save the file temporarily
-            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
+            png_directory = os.path.join(
+                settings.BASE_DIR,
+                "main",
+                "static",
+                "images",
+                "png_files"
+            )
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
@@ -178,7 +190,7 @@ def image_llama(request: HttpRequest) -> HttpResponse:
             # Clean up the temporary file
             os.remove(file_path)
 
-            # Structure the results for the template
+            # Structure the results
             results = [
                 {
                     "filename": uploaded_file.name,
@@ -236,7 +248,13 @@ def image_open(request: HttpRequest) -> HttpResponse:
                 )
 
             # Save the file temporarily
-            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
+            png_directory = os.path.join(
+                settings.BASE_DIR,
+                "main",
+                "static",
+                "images",
+                "png_files"
+            )
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
@@ -305,6 +323,7 @@ def image_groq(request: HttpRequest) -> HttpResponse:
         The rendered image processing page or redirects to the home page after successful processing.
     """
     import logging
+    import os
     import time
 
     logger = logging.getLogger(__name__)
@@ -323,11 +342,30 @@ def image_groq(request: HttpRequest) -> HttpResponse:
             # Get the uploaded file
             uploaded_file = request.FILES["image"]
 
+            # Save the file temporarily
+            png_directory = os.path.join(
+                settings.BASE_DIR,
+                "main",
+                "static",
+                "images",
+                "png_files"
+            )
+            if not os.path.exists(png_directory):
+                os.makedirs(png_directory)
+
+            file_path = os.path.join(png_directory, uploaded_file.name)
+            with open(file_path, "wb+") as destination:
+                for chunk in uploaded_file.chunks():
+                    destination.write(chunk)
+
             # Process the image
             start_time = time.time()
-            image_data = uploaded_file.read()
-            result = processor.process_image(image_data)
+            result = processor.process_image(file_path)
             processing_time = round(time.time() - start_time, 2)
+
+            # Clean up the temporary file
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
             # Structure the results
             results = [
@@ -335,7 +373,7 @@ def image_groq(request: HttpRequest) -> HttpResponse:
                     "filename": uploaded_file.name,
                     "processing_time": processing_time,
                     "data": {
-                        "success": True,
+                        "success": result.get("success", False),
                         "status": "completed",
                         "table_headers": result.get("table_headers", []),
                         "table_data": result.get("table_data", []),
@@ -346,6 +384,12 @@ def image_groq(request: HttpRequest) -> HttpResponse:
             ]
 
             logger.info(f"Successfully processed {uploaded_file.name}")
+
+            return render(
+                request,
+                "main/admin/image_groq.html",
+                {"results": results}
+            )
 
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}", exc_info=True)
