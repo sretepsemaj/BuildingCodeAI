@@ -34,15 +34,11 @@ class TestOpenAIAPI(TestCase):
 
     def test_api_key_exists(self):
         """Test that the OpenAI API key is properly set"""
-        self.assertIsNotNone(
-            self.api_key, "OPEN_API_KEY environment variable is not set"
-        )
+        self.assertIsNotNone(self.api_key, "OPEN_API_KEY environment variable is not set")
 
     def test_api_key_valid_format(self):
         """Test that the API key follows OpenAI's format"""
-        self.assertTrue(
-            self.api_key.startswith("sk-"), "OpenAI API key should start with 'sk-'"
-        )
+        self.assertTrue(self.api_key.startswith("sk-"), "OpenAI API key should start with 'sk-'")
         self.assertTrue(len(self.api_key) > 20, "OpenAI API key seems too short")
 
     @patch("main.utils.image_processor.OpenAIClient")
@@ -50,9 +46,7 @@ class TestOpenAIAPI(TestCase):
         """Test GPT-4 Vision API endpoint"""
         # Mock successful response
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content="Test analysis of image"))
-        ]
+        mock_response.choices = [MagicMock(message=MagicMock(content="Test analysis of image"))]
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client
@@ -115,9 +109,7 @@ class TestOpenAIAPI(TestCase):
         result = processor.analyze_with_gpt4_vision("nonexistent_image.png")
 
         self.assertFalse(result["success"])
-        self.assertEqual(
-            result["message"], "Image file not found: nonexistent_image.png"
-        )
+        self.assertEqual(result["message"], "Image file not found: nonexistent_image.png")
         self.assertEqual(result["analysis"], "")
 
     def tearDown(self):

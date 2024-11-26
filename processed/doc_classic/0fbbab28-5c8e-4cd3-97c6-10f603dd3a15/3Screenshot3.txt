@@ -1,0 +1,60 @@
+GENERAL REGULATIONS
+
+305.8 Breakage. Pipes passing through or under walls shall be protected from breakage.
+
+305.9 Wind resistance. Equipment, appliances and supports that are exposed to wind shall be designed and installed
+to resist the wind pressures determined in accordance with the New York City Building Code.
+SECTION PC 306
+TRENCHING, EXCAVATION AND BACKFILL
+
+306.1 Support of piping. Buried piping shall be supported throughout its entire length.
+
+306.2 Trenching and bedding. Where trenches are excavated such that the bottom of the trench forms the bed for the
+pipe, solid and continuous load-bearing support shall be provided between joints. Bell holes, hub holes and coupling
+holes shall be provided at points where the pipe is joined. Such pipe shall not be supported on blocks to grade. In
+instances where the materials manufacturer’s installation instructions are more restrictive than those prescribed by the
+code, the material shall be installed in accordance with the more restrictive requirement.
+
+306.2.1 Overexcavation. Where trenches are excavated below the installation level of the pipe such that the bottom
+of the trench does not form the bed for the pipe, the trench shall be backfilled to the installation level of the bottom
+of the pipe with sand or fine gravel placed in layers not greater than 6 inches (152 mm) in depth and such backfill
+shall be compacted after each placement.
+
+306.2.2 Rock removal. Where rock is encountered in trenching, the rock shall be removed to not less than 3 inches
+(76 mm) below the installation level of the bottom of the pipe, and the trench shall be backfilled to the installation
+level of the bottom of the pipe with sand tamped in place so as to provide uniform load-bearing support for the pipe
+between joints. The pipe, including the joints, shall not rest on rock at any point.
+
+306.2.3 Soft load-bearing materials. If soft materials of poor load-bearing quality are found at the bottom of the
+trench, pipe shall be hung from slab above.
+
+306.3 Backfilling. Material used under and beside pipes shall be clean backfill, free of discarded construction material
+and debris. Loose earth free from rocks, broken concrete and frozen chunks shall be placed in the trench in 6-inch
+(152 mm) layers and tamped in place until the crown of the pipe is covered by 12 inches (305 mm) of tamped earth.
+The backfill under and beside the pipe shall be compacted for pipe support. Backfill shall be brought up evenly on
+both sides of the pipe so that the pipe remains aligned. In instances where the manufacturer’s installation instructions
+for materials are more restrictive than those prescribed by the code, the material shall be installed in accordance with
+the more restrictive requirement, Backfilling is subject to progress inspection in accordance with Section 108.
+
+306.4 Tunneling. Where pipe is to be installed by tunneling, jacking or a combination of both, the pipe shall be
+protected from damage during installation and from subsequent uneven loading. Where earth tunnels are used, ade-
+quate supporting structures shall be provided to prevent future settling or caving.
+SECTION PC 307
+STRUCTURAL SAFETY
+
+307.1 General. In the process of installing or repairing any part of a plumbing and drainage installation, the finished
+floors, walls, ceilings, tile work or any other part of the building or premises that must be changed or replaced shall
+be left in a safe structural condition in accordance with the requirements of the New York City Building Code.
+
+307.2 Loading, Alterations resulting in the addition of loads to any member, such as appliances and equipment, shall
+not be permitted without verification that the members are capable of supporting such additional loading.
+
+307.3 Cutting, notching and boring. The cutting, notching and boring of structural elements shall be in accordance
+with the limitations specified in Appendix C.
+
+307.4 Penetrations of floor/ceiling assemblies and fire-resistance-rated assemblies. Penetrations of floor/ceiling
+assemblies and assemblies required to have a fire-resistance rating shall be protected in accordance with the New
+York City Building Code.
+
+307.5 Trusses. Truss members of any material and components shall not be cut, drilled, notched, spliced or otherwise
+altered in any way without written concurrence and approval of a registered design professional.

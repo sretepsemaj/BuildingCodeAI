@@ -18,9 +18,7 @@ def test_image_analysis():
     image_directory = (
         "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/static/images/png_files"
     )
-    test_images = [
-        f for f in os.listdir(image_directory) if f.endswith((".png", ".jpg", ".jpeg"))
-    ]
+    test_images = [f for f in os.listdir(image_directory) if f.endswith((".png", ".jpg", ".jpeg"))]
 
     if not test_images:
         print("✗ No test images found in directory")

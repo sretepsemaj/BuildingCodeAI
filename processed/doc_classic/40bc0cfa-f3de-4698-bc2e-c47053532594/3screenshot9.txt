@@ -1,0 +1,43 @@
+$1 314.23 Auxiliary and secondary drain systems. In addition to the requirements of Section 314.2.1, where
+damage to any building components could occur as a result of overflow from the equipment primary condensate
+removal system, one of the following auxiliary protection methods shall be provided for each cooling coil or fuel-
+fired appliance that produces condensate:
+
+1. An auxiliary drain pan with a separate drain shall be provided under the coils on which condensation will
+occur. The auxiliary pan drain shall discharge to a conspicuous point of disposal to alert occupants in the
+event of a stoppage of the primary drain. The pan shall have a depth of not less than 1'/) inches (38 mm),
+shall be not less than 3 inches (76 mm) larger than the unit or the coil dimensions in width and length and
+shall be constructed of corrosion-resistant material. Metallic pans shall have a thickness of not less than
+0.0236-inch (0.6010 mm) (No. 24 gage) for galvanized sheet metal pans, 0.0179 inches (0.4546 mm) (No.
+26 gage) for stainless steel pans, or 0.0320 inches (0.8128 mm) (No. 20 gage) for aluminum pans. Nonmet-
+allic pans shall have a thickness of not less than 0.0625-inch (1.6 mm).
+
+2. A separate overflow drain line shall be connected to the drain pan provided with the equipment. Such over-
+flow drain shall discharge to a conspicuous point of disposal to alert occupants in the event of a stoppage of
+the primary drain. The overflow drain line shall connect to the drain pan at a higher level than the primary
+drain connection.
+
+3. An auxiliary drain pan without a separate drain line shall be provided under the coils on which condensate
+will occur. Such pan shall be equipped with a listed water-level detection device that will shut off the equip-
+ment served prior to overflow of the pan, The auxiliary drain pan shall be constructed in accordance with
+Item | of this section.
+
+4. A listed water-level detection device shall be provided that will shut off the equipment served in the event
+that the primary drain is blocked. The device shall be installed in the primary drain line, the overflow drain
+line or in the equipment-supplied drain pan, located at a point higher than the primary drain line connection
+and below the overflow rim of such pan.
+
+Exceptions:
+
+1. An auxiliary drain protection method shall not be required for fuel-fired appliances that automati-
+cally shut down operation in the event of a stoppage in the condensate drainage system.
+
+2. An auxiliary drain protection method shall not be required where a suitably sized and located floor
+drain is provided.
+314.2.3.1 Water-level monitoring devices. On down-flow units and all other coils that do not have a secondary
+drain or provisions to install a secondary or auxiliary drain pan, a water-level monitoring device shall be installed
+inside the primary drain pan. This device shall shut off the equipment served in the event that the primary drain
+becomes restricted. Devices installed in the drain line shall not be permitted.
+
+314.2.3.2 Appliance, equipment and insulation in pans. Where an appliance, equipment or insulation is sub-
+ject to water damage when auxiliary drain pans fill, that portion of the appliance, equipment and insulation shall

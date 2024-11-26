@@ -20,9 +20,7 @@ def test_groq_processing():
 
     # Get the absolute path to the test image
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    test_image = os.path.join(
-        base_dir, "static", "images", "png_files", "6Screenshot3.png"
-    )
+    test_image = os.path.join(base_dir, "static", "images", "png_files", "6Screenshot3.png")
 
     print(f"\n{Colors.HEADER}Testing Groq Image Processing{Colors.ENDC}")
     print("=" * 50)
@@ -30,9 +28,7 @@ def test_groq_processing():
     try:
         # Check if test image exists
         if not os.path.exists(test_image):
-            print(
-                f"{Colors.FAIL}Error: Test image not found at {test_image}{Colors.ENDC}"
-            )
+            print(f"{Colors.FAIL}Error: Test image not found at {test_image}{Colors.ENDC}")
             print(
                 f"{Colors.WARNING}Make sure you have placed '6Screenshot3.png' in the static/images/png_files/ directory{Colors.ENDC}"
             )

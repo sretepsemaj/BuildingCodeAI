@@ -19,9 +19,7 @@ urlpatterns = [
     path("profile/", views.profile, name="profile"),
     # Redirect /accounts/profile/ to /profile/
     path("accounts/profile/", RedirectView.as_view(url="/profile/", permanent=True)),
-    path(
-        "accounts/logout/", views.logout_view, name="auth_logout"
-    ),  # Override default auth logout
+    path("accounts/logout/", views.logout_view, name="auth_logout"),  # Override default auth logout
     path(
         "accounts/",
         include(
@@ -42,9 +40,7 @@ urlpatterns = [
     path("doc_classic/", views.process_doc_classic, name="process_doc_classic"),
     path("doc_batches/", views.view_document_batches, name="doc_batches"),
     path("semantic_search/", views.semantic_search, name="semantic_search"),
-    path(
-        "doc_batch/<str:batch_id>/", views.view_batch_details, name="view_batch_details"
-    ),
+    path("doc_batch/<str:batch_id>/", views.view_batch_details, name="view_batch_details"),
     path("doc_batch/<str:batch_id>/delete/", views.delete_batch, name="delete_batch"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

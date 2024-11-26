@@ -29,9 +29,7 @@ class DocumentEmbedder:
         if api_key is None:
             api_key = os.getenv("OPEN_API_KEY")
             if not api_key:
-                raise ValueError(
-                    "No API key provided and OPEN_API_KEY not found in environment"
-                )
+                raise ValueError("No API key provided and OPEN_API_KEY not found in environment")
 
         self.client = OpenAI(api_key=api_key)
         self.model = "text-embedding-ada-002"
@@ -54,9 +52,7 @@ class DocumentEmbedder:
                 response = self.client.embeddings.create(model=self.model, input=text)
                 return response.data[0].embedding
             except Exception as e:
-                print(
-                    f"Error creating embedding (attempt {attempt + 1}/{max_retries}): {e}"
-                )
+                print(f"Error creating embedding (attempt {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     print(f"Waiting {retry_delay} seconds before retrying...")
                     time.sleep(retry_delay)

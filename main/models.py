@@ -4,7 +4,7 @@ import os
 import shutil
 import uuid
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
+from typing import Any, Dict, List, Optional, Type, TypeVar, cast
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -12,15 +12,17 @@ from django.db import models
 from django.db.models.signals import post_delete, pre_delete
 from django.dispatch import receiver
 
+T = TypeVar("T", bound=models.Model)
+
 
 class DocumentBatch(models.Model):
     """Represents a batch of processed documents."""
 
-    id: uuid.UUID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name: str = models.CharField(max_length=255)
-    user: User = models.ForeignKey(User, on_delete=models.CASCADE, related_name="document_batches")
-    created_at: datetime = models.DateTimeField(auto_now_add=True)
-    status: str = models.CharField(
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="document_batches")
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(
         max_length=20,
         choices=[
             ("processing", "Processing"),
@@ -35,12 +37,12 @@ class DocumentBatch(models.Model):
         """Get the directory path for this batch's files."""
         return os.path.join(settings.MEDIA_ROOT, "indexes", "doc_classic", str(self.id))
 
-    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
         """Override delete to ensure all files are cleaned up."""
-        result: tuple[int, dict[str, int]] = (0, {})
+        result: tuple[int, Dict[str, int]] = (0, {})
         
         # Delete all associated documents first
-        for doc in self.documents.all():
+        for doc in self.documents.all():  
             if hasattr(doc, "original_file") and doc.original_file:
                 try:
                     doc.original_file.delete()
@@ -69,22 +71,27 @@ class DocumentBatch(models.Model):
         """String representation of the batch."""
         return f"Batch {self.id} ({self.status})"
 
+    class Meta:
+        """Meta options for DocumentBatch."""
+        ordering = ["-created_at"]
+        verbose_name_plural = "Document Batches"
+
 
 class ProcessedDocument(models.Model):
     """Represents a single processed document."""
 
-    id: uuid.UUID = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    batch: DocumentBatch = models.ForeignKey(DocumentBatch, on_delete=models.CASCADE, related_name="documents")
-    filename: str = models.CharField(max_length=255)
-    original_path: str = models.CharField(max_length=255, null=True, blank=True)
-    text_path: Optional[str] = models.CharField(max_length=255, null=True, blank=True)
-    status: str = models.CharField(max_length=20, choices=[("success", "Success"), ("failed", "Failed")])
-    error_message: Optional[str] = models.TextField(null=True, blank=True)
-    processed_at: Optional[datetime] = models.DateTimeField(auto_now_add=True)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    batch = models.ForeignKey(DocumentBatch, on_delete=models.CASCADE, related_name="documents")
+    filename = models.CharField(max_length=255)
+    original_path = models.CharField(max_length=255, null=True, blank=True)
+    text_path = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=[("success", "Success"), ("failed", "Failed")])
+    error_message = models.TextField(null=True, blank=True)
+    processed_at = models.DateTimeField(auto_now_add=True)
 
-    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, dict[str, int]]:
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
         """Override delete to ensure all files are cleaned up."""
-        result: tuple[int, dict[str, int]] = (0, {})
+        result: tuple[int, Dict[str, int]] = (0, {})
         
         # Delete the physical files
         if self.original_path and os.path.exists(self.original_path):
@@ -142,9 +149,10 @@ class ProcessedDocument(models.Model):
         """String representation of the document."""
         return f"Document {self.filename} ({self.status})"
 
+    class Meta:
+        """Meta options for ProcessedDocument."""
+        ordering = ["-processed_at"]
 
-T = TypeVar("T", bound=models.Model)
-SignalCallback = Callable[[Type[T], T, Dict[str, Any]], None]
 
 @receiver(pre_delete, sender=DocumentBatch)  # type: ignore[misc]
 def delete_batch_files(sender: Type[DocumentBatch], instance: DocumentBatch, **kwargs: Dict[str, Any]) -> None:

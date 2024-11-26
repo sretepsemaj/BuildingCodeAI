@@ -20,9 +20,7 @@ from dotenv import load_dotenv
 
 
 # Environment variable utilities
-def get_env_value(
-    env_variable: str, default: Any = None, required: bool = False
-) -> Any:
+def get_env_value(env_variable: str, default: Any = None, required: bool = False) -> Any:
     """Get an environment variable or return its default."""
     value = os.getenv(env_variable)
     if value is None and required:
@@ -45,9 +43,7 @@ def get_int_env(env_variable: str, default: int = 0) -> int:
         return default
 
 
-def get_list_env(
-    env_variable: str, default: List[str] = None, separator: str = ","
-) -> List[str]:
+def get_list_env(env_variable: str, default: List[str] = None, separator: str = ",") -> List[str]:
     """Get a list from an environment variable."""
     if default is None:
         default = []
@@ -169,10 +165,7 @@ DATABASES = {
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        "NAME": (
-            "django.contrib.auth.password_validation."
-            "UserAttributeSimilarityValidator"
-        ),
+        "NAME": ("django.contrib.auth.password_validation." "UserAttributeSimilarityValidator"),
     },
     {
         "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",

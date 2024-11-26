@@ -1,0 +1,64 @@
+GENERAL REGULATIONS
+
+such as magnetic-particle, radiographic, ultrasonic, etc., shall not be required unless specifically listed herein or in the
+engineering design.
+
+312.11.1 Welder’s qualifications. Welders installing domestic water piping within buildings at any pressure shall
+comply with the following:
+
+1. Welders shall be qualified for all pipe sizes, wall thicknesses and all positions in accordance with the ASME
+Boiler and Pressure Vessel Code, Section IX. Requalification of a welder is required should the welder fail
+to maintain welder’s continuity every 6 months. The licensed master plumber employing the welder shall
+maintain a welder continuity log and the log shall be made available to the department upon request.
+
+2. Welder qualification testing shall be performed by an approved agency and the inspector witnessing the test
+shall be an authorized AWS Certified Welding Inspector.
+
+3. Copies of the certified welder qualification reports shall be maintained by both the approved agency and the
+licensed master plumber employing the welder for at least six years and shall be made available to the de-
+partment upon request.
+
+SECTION PC 313
+EQUIPMENT EFFICIENCIES
+
+313.1 General. Equipment efficiencies shall be in accordance with the New York City Energy Conservation Code.
+
+SECTION PC 314
+CONDENSATE DISPOSAL
+
+314.1 Fuel-burning appliances, Liquid combustion by-products of condensing appliances shall be collected and dis-
+charged to an approved plumbing fixture or disposal area in accordance with the manufacturer’s instructions. Con-
+densate piping shall be of approved corrosion-resistant material in accordance with Section 803 and shall not be
+smaller than the drain connection on the appliance. Such piping shall maintain a minimum horizontal slope in the
+direction of discharge of not less than one-eighth unit vertical in 12 units horizontal (1-percent slope).
+
+314.1.1 Condensate disposal. Condensate from all fuel-burning appliances and associated flues shall be neutral-
+ized to a pH of at least 6 and no more than 8 prior to disposal to a sanitary system.
+
+314.2 Evaporators and cooling coils. Condensate drain systems shall be provided for equipment and appliances
+containing evaporators or cooling coils. Condensate drain systems shall be designed, constructed and installed in
+accordance with Sections 314.2.1 through 314.2.5.
+
+Exception: Evaporators and cooling coils that are designed to operate in sensible cooling only and not support
+condensation shall not be required to meet the requirements of this section.
+
+314.2.1 Condensate disposal. Condensate from all cooling coils and evaporators shall be conveyed from the drain
+pan outlet to an approved place of disposal. Such piping shall maintain a minimum horizontal slope in the direction
+of discharge of not less than one-eighth unit vertical in 12 units horizontal (1-percent slope). Condensate shall not
+discharge into a street, alley or other areas so as to cause a nuisance.
+
+$+ 314.2.2 Drain pipe materials and sizes. Components of the condensate disposal system shall be cast iron,
+galvanized steel, copper, cross-linked polyethylene, polyethylene, ABS, CPVC, or PVC pipe or tubing. Polypro-
+pylene tubing may be used in lengths that do not exceed 12 inches (304.8 mm) for an individual drain application.
+Components shall be selected for the pressure and temperature rating of the installation. Joints and connections
+shall be made in accordance with the applicable provisions of Chapter 7 relative to the material type. Condensate
+waste and drain line size shall be not less than /s-inch (19.1 mm) internal diameter and shall not decrease in size
+from the drain pan connection to the place of condensate disposal. Where the drain pipes from more than one unit
+are manifolded together for condensate drainage, the pipe or tubing shall be sized in accordance with Table 314.2.2.
+
+TABLE 314.2.2
+CONDENSATE DRAIN SIZING
+
+MINIMUM CONDENSATE PIPE
+
+EQUIPMENT CAPACITY DIAMETER

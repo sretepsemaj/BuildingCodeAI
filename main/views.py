@@ -131,9 +131,7 @@ def profile(request: HttpRequest) -> HttpResponse:
                 "total_users": total_users,
                 "total_docs": total_docs,
                 "successful_docs": successful_docs,
-                "success_rate": (
-                    (successful_docs / total_docs * 100) if total_docs > 0 else 0
-                ),
+                "success_rate": ((successful_docs / total_docs * 100) if total_docs > 0 else 0),
             }
         )
         template_name = "main/admin/profile.html"
@@ -164,9 +162,7 @@ def image_llama(request: HttpRequest) -> HttpResponse:
                 return render(request, "main/admin/image_llama.html")
 
             # Save the file temporarily
-            png_directory = os.path.join(
-                settings.BASE_DIR, "main", "static", "images", "png_files"
-            )
+            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
@@ -240,9 +236,7 @@ def image_open(request: HttpRequest) -> HttpResponse:
                 )
 
             # Save the file temporarily
-            png_directory = os.path.join(
-                settings.BASE_DIR, "main", "static", "images", "png_files"
-            )
+            png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
                 os.makedirs(png_directory)
 
@@ -272,9 +266,7 @@ def image_open(request: HttpRequest) -> HttpResponse:
                             "table_headers": [],
                             "table_data": [],
                         },
-                        "analysis": result[
-                            "analysis"
-                        ],  # Add the analysis directly to the result
+                        "analysis": result["analysis"],  # Add the analysis directly to the result
                     }
                 ],
             }
@@ -282,9 +274,7 @@ def image_open(request: HttpRequest) -> HttpResponse:
             # Add debug print
             print("Response data:", response)
 
-            return render(
-                request, "main/admin/image_open.html", {"results": response["results"]}
-            )
+            return render(request, "main/admin/image_open.html", {"results": response["results"]})
 
         # If no file uploaded, just show the form
         return render(request, "main/admin/image_open.html")
@@ -523,9 +513,7 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
         try:
             batch = DocumentBatch.objects.get(id=batch_id)
             if batch.user != request.user and not request.user.is_staff:
-                messages.error(
-                    request, "You don't have permission to delete this batch."
-                )
+                messages.error(request, "You don't have permission to delete this batch.")
                 return redirect("view_document_batches")
 
             # Delete associated documents first
@@ -534,16 +522,12 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
                 try:
                     # Delete the physical files
                     if doc.original_path:
-                        full_path = os.path.join(
-                            settings.MEDIA_ROOT, doc.original_path.lstrip("/")
-                        )
+                        full_path = os.path.join(settings.MEDIA_ROOT, doc.original_path.lstrip("/"))
                         if os.path.exists(full_path):
                             os.remove(full_path)
 
                     if doc.text_path:
-                        full_path = os.path.join(
-                            settings.MEDIA_ROOT, doc.text_path.lstrip("/")
-                        )
+                        full_path = os.path.join(settings.MEDIA_ROOT, doc.text_path.lstrip("/"))
                         if os.path.exists(full_path):
                             os.remove(full_path)
                 except Exception as e:
@@ -604,9 +588,7 @@ def semantic_search(request: HttpRequest) -> HttpResponse:
 
                 # Find the latest embeddings file
                 embeddings_dir = os.path.join(settings.MEDIA_ROOT, "embeddings")
-                embedding_files = glob.glob(
-                    os.path.join(embeddings_dir, "embeddings_*.json")
-                )
+                embedding_files = glob.glob(os.path.join(embeddings_dir, "embeddings_*.json"))
                 if not embedding_files:
                     raise FileNotFoundError("No embedding files found")
 

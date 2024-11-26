@@ -20,9 +20,7 @@ def test_image_processing():
 
     # Get the absolute path to the test image
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    test_image = os.path.join(
-        base_dir, "static", "images", "png_files", "6Screenshot3.png"
-    )
+    test_image = os.path.join(base_dir, "static", "images", "png_files", "6Screenshot3.png")
 
     print(f"\n{Colors.HEADER}Testing Image Processing{Colors.ENDC}")
     print("=" * 50)

@@ -1,0 +1,68 @@
+GENERAL REGULATIONS
+
+308.6.1 No-hub type cast iron soil pipe, fittings, and couplings. Installation of sway bracing for no-hub cast iron
+soil pipe, fittings, and couplings shall comply with CISPI 310.
+
+308.7 Anchorage. Anchorage shall be provided to restrain drainage piping from axial movement.
+
+308.7.1 Location. For pipe sizes greater than 4 inches (102 mm), restraints shall be provided for drain pipes at all
+changes in direction and at all changes in diameter greater than two pipe sizes. Braces, blocks, rodding and other
+suitable methods as specified by the coupling manufacturer shall be utilized.
+
+308.8 Expansion joint fittings. Expansion joint fittings shall be used only where necessary to provide for expansion
+and contraction of the pipes. Expansion joint fittings shall be of the typical material suitable for use with the type of
+piping in which such fittings are installed.
+
+SECTION PC 309
+
+FLOOD HAZARD RESISTANCE
+309.1 General. Plumbing systems and equipment in structures erected in flood hazard areas shall be constructed in
+accordance with the requirements of this section and Appendix G of the New York City Building Code.
+
+309.2 Flood hazard. For structures located in flood hazard areas, the following systems and equipment shall be lo-
+cated and installed as required by Appendix G of the New York City Building Code:
+
+. Water service pipes.
+
+2. Pump seals in individual water supply systems where the pump is located below the design flood elevation.
+
+we
+
+. Covers on potable water wells shall be sealed, except where the top of the casing well or pipe sleeve is elevated
+to not less than 1 foot (305 mm) above the design flood elevation.
+
+4. Sanitary drainage piping.
+
+5. Storm drainage piping.
+
+6. Manhole covers shall be sealed, except where elevated to or above the design flood elevation.
+7. Other plumbing fixtures, faucets, fixture fittings, piping systems and equipment.
+
+8. Water heaters.
+
+9. Vents and vent systems.
+
+Exception: In accordance with Appendix G of the New York City Building Code, the above systems are permitted
+to be located below the design flood elevation provided that the systems are designed and installed to prevent
+water from entering or accumulating within their components and the systems are constructed to resist hydrostatic
+and hydrodynamic loads and stresses, including the effects of buoyancy, during the occurrence of flooding to the
+design flood elevation.
+
+309.3 Coastal high-hazard areas and coastal A zones. Structures located in coastal high-hazard areas and coastal A.
+zones shall meet the requirements of Section 309.2. The plumbing systems, pipes and fixtures shall not be mounted
+on or penetrate through walls intended to break away under flood loads.
+
+SECTION PC 310
+WASHROOM AND TOILET ROOM REQUIREMENTS
+
+310.1 Light and ventilation. Washrooms and toilet rooms shall be illuminated and ventilated in accordance with the
+New York City Building Code and New York City Mechanical Code.
+
+310.2 Location of fixtures and compartments. The location of plumbing fixtures and the requirements for compart-
+ments and partitions shall be in accordance with Section 405.
+310.3 Interior finish. Interior finish surfaces of toilet rooms shall comply with the New York City Building Code.
+
+SECTION PC 311
+TOILET FACILITIES FOR WORKERS:
+311.1 General. Toilet facilities shall be provided for construction workers and such facilities shall be maintained in a
+sanitary condition. Construction worker toilet facilities of the nonsewer type shall conform to ANSI Z4.3.
