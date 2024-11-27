@@ -1,12 +1,17 @@
 import imghdr
 import logging
+import operator
 import os
+import re
 import shutil
 import uuid
-from typing import Any
+from datetime import datetime
+from functools import reduce
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytesseract
 from django.conf import settings
+from django.db.models import Q
 from PIL import Image
 
 # Configure logging
@@ -15,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class DocClassicProcessor:
-    """A class for processing documents using classic OCR techniques."""
+    """A class for processing documents using OCR and metadata extraction."""
 
     def __init__(self) -> None:
         """Initialize the DocClassicProcessor."""
@@ -34,109 +39,335 @@ class DocClassicProcessor:
     def validate_image(self, file: Any) -> None:
         """Validate that the file is a valid image."""
         try:
+            # Save temporarily to check format and size
+            temp_path = os.path.join(
+                self.source_dir, "temp_" + os.path.basename(getattr(file, "name", "temp.png"))
+            )
+            file_size = 0
+
+            # Handle both Django UploadedFile and regular file objects
+            with open(temp_path, "wb+") as destination:
+                if hasattr(file, "chunks"):
+                    # Django UploadedFile
+                    for chunk in file.chunks():
+                        file_size += len(chunk)
+                        destination.write(chunk)
+                else:
+                    # Regular file object
+                    content = file.read()
+                    file_size = len(content)
+                    destination.write(content)
+                    file.seek(0)  # Reset file pointer
+
             # Check file size (max 10MB)
-            if file.size > 10 * 1024 * 1024:
+            if file_size > 10 * 1024 * 1024:
+                os.remove(temp_path)
                 raise ValueError("File size too large. Maximum size is 10MB.")
 
-            # Save temporarily to check format
-            temp_path = os.path.join(self.source_dir, "temp_" + file.name)
-            with open(temp_path, "wb+") as destination:
-                for chunk in file.chunks():
-                    destination.write(chunk)
-
             # Check if it's a valid image
-            img_type = imghdr.what(temp_path)
-            if img_type not in ["png", "jpeg", "jpg"]:
-                os.remove(temp_path)
-                raise ValueError(
-                    f"Invalid image format. Got {img_type}, expected png, jpeg, or jpg."
-                )
+            try:
+                with Image.open(temp_path) as img:
+                    format = img.format.lower()
+                    if format not in ["png", "jpeg"]:
+                        raise ValueError(
+                            f"Invalid image format. Got {format}, expected png or jpeg."
+                        )
+            except Exception as e:
+                raise ValueError(f"Invalid image file: {str(e)}")
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
-            # Clean up temp file
-            os.remove(temp_path)
         except Exception as e:
-            logger.error(f"Validation error for {file.name}: {str(e)}")
+            logger.error(f"Validation error for {getattr(file, 'name', 'unknown file')}: {str(e)}")
             raise ValueError(f"File validation failed: {str(e)}")
 
-    def process_single(self, uploaded_file: Any) -> dict[str, str]:
-        """Process a single uploaded file and return paths to the original and processed files."""
+    def extract_metadata(self, text: str) -> Dict[str, Optional[str]]:
+        """Extract metadata from OCR text."""
+        logger.info(f"Starting metadata extraction from text:\n{text}")
+
+        metadata = {
+            "title": None,
+            "chapter": None,
+            "section_pc": None,
+            "section": None,
+            "subsection": None,
+        }
+
+        # Clean up text by removing extra whitespace and normalizing newlines
+        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
+        lines = text.split("\n")
+        logger.info(f"Cleaned text lines: {lines}")
+
+        # Extract chapter first
+        chapter_patterns = [r"CHAPTER\s+(\d+)", r"ARTICLE\s+(\d+)", r"Section\s+(\d+)"]
+        for pattern in chapter_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                metadata["chapter"] = match.group(1)
+                break
+
+        # Extract section identifiers
+        section_patterns = [
+            r"PC[- ](\d+(?:\.\d+)?)",
+            r"Section\s+(\d+(?:\.\d+)?)",
+            r"§\s*(\d+(?:\.\d+)?)",
+        ]
+        for pattern in section_patterns:
+            match = re.search(pattern, text)
+            if match:
+                metadata["section_pc"] = f"PC-{match.group(1)}"
+                break
+
+        # Extract title (look for "BUILDING CODE REQUIREMENTS")
+        for line in lines:
+            logger.info(f"Looking for title in line: {line}")
+            if "BUILDING CODE REQUIREMENTS" in line.upper().rstrip("."):
+                metadata["title"] = line.strip()
+                logger.info(f"Found title: {metadata['title']}")
+                break
+
+        # Extract section
+        for line in lines:
+            logger.info(f"Looking for section in line: {line}")
+            section_patterns = [
+                r"^(\d+\.\d+)\s+",  # Start of line
+                r"Section\s+(\d+\.\d+)",  # Explicit section
+                r"(?<!\d)(\d+\.\d+)(?!\d)",  # Numbers with dot, not part of larger number
+                r"(?<!\d)(\d+)\.(\d+)(?!\d)",  # Split numbers with dot
+                r"(?<!\d)(\d)(?!\d).*?(?<!\d)(\d)(?!\d)",  # Single digits with content between
+            ]
+            for pattern in section_patterns:
+                match = re.search(pattern, line)
+                if match:
+                    if len(match.groups()) == 2:
+                        # Handle split numbers
+                        metadata["section"] = f"{match.group(1)}.{match.group(2)}"
+                    else:
+                        metadata["section"] = match.group(1)
+                    logger.info(f"Found section: {metadata['section']}")
+                    break
+            if metadata["section"]:
+                break
+
+        logger.info(f"Final metadata: {metadata}")
+        return metadata
+
+    def process_single(self, file_obj) -> Dict[str, Any]:
+        """Process a single image file and extract metadata."""
         try:
-            # Validate the file first
-            self.validate_image(uploaded_file)
+            # Validate the image
+            self.validate_image(file_obj)
 
-            # Create permanent directories
-            batch_id = str(uuid.uuid4())
+            # Convert file object to PIL Image
+            image = Image.open(file_obj)
 
-            # Create full paths
-            full_permanent_dir = os.path.join(
-                settings.MEDIA_ROOT, "uploads", "doc_classic", batch_id
-            )
-            full_text_dir = os.path.join(settings.MEDIA_ROOT, "processed", "doc_classic", batch_id)
+            # Extract text using OCR
+            extracted_text = pytesseract.image_to_string(image)
+            logger.info(f"OCR Extracted Text:\n{extracted_text}")
 
-            os.makedirs(full_permanent_dir, exist_ok=True)
-            os.makedirs(full_text_dir, exist_ok=True)
+            # Extract metadata from text
+            metadata = self.extract_metadata(extracted_text)
+            logger.info(f"Extracted Metadata: {metadata}")
 
-            # Save the uploaded file to permanent location
-            original_filename = uploaded_file.name
-            relative_original_path = os.path.join(
-                "uploads", "doc_classic", batch_id, original_filename
-            )
-            full_original_path = os.path.join(settings.MEDIA_ROOT, relative_original_path)
+            # Calculate OCR confidence
+            ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+            confidences = [float(conf) for conf in ocr_data["conf"] if conf != "-1"]
+            ocr_confidence = sum(confidences) / len(confidences) if confidences else 0.0
 
-            print(f"Saving file to: {full_original_path}")
-
-            with open(full_original_path, "wb+") as destination:
-                for chunk in uploaded_file.chunks():
-                    destination.write(chunk)
-
-            # Process the image and extract text
-            print("Extracting text from image...")
-            text = self._extract_text_from_image(full_original_path)
-            print(f"Extracted text: {text[:100]}...")
-
-            # Save the extracted text
-            text_filename = os.path.splitext(original_filename)[0] + ".txt"
-            relative_text_path = os.path.join("processed", "doc_classic", batch_id, text_filename)
-            full_text_path = os.path.join(settings.MEDIA_ROOT, relative_text_path)
-
-            print(f"Saving text to: {full_text_path}")
-
-            with open(full_text_path, "w", encoding="utf-8") as f:
-                f.write(text)
-
-            logger.info(
-                f"Successfully processed {full_original_path} and saved text to {full_text_path}"
-            )
-
-            # Verify files exist
-            if not os.path.exists(full_original_path):
-                raise ValueError("Original file not found after processing")
-
-            # Return relative paths for storage in the database
-            return {
-                "original_path": relative_original_path,
-                "text_path": relative_text_path,
-                "text": text,
+            # Combine results
+            result = {
+                "extracted_text": extracted_text,
+                "ocr_confidence": ocr_confidence,
+                "ocr_version": pytesseract.get_tesseract_version(),
+                "processing_params": {"tesseract_config": "", "preprocessing": "none"},
+                **metadata,
             }
-        except ValueError as e:
-            logger.error(f"ValueError in process_single: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Error processing {uploaded_file.name}: {str(e)}")
-            raise Exception(f"Error processing file: {str(e)}")
 
-    def _extract_text_from_image(self, image_path: str) -> str:
-        """Extract text from an image using OCR."""
-        try:
-            image = Image.open(image_path)
-            text = pytesseract.image_to_string(image)
-            text = text.strip()
-            if not text:
-                raise ValueError("No text could be extracted from the image.")
-            return text
+            return result
+
         except Exception as e:
-            logger.error(f"Error extracting text from image: {str(e)}")
-            raise Exception(f"Error extracting text from image: {str(e)}")
+            logger.error(f"Error processing single image: {str(e)}")
+            raise
+
+    def process_folder(self, folder_path: str, batch_name: str = None, user=None) -> Dict[str, Any]:
+        """Process all images in a folder."""
+        try:
+            from django.core.files import File
+
+            from main.models import DocumentBatch, ProcessedDocument
+
+            # Create a new batch
+            batch = DocumentBatch.objects.create(
+                name=batch_name or f"Batch {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                user=user,
+                status="processing",
+            )
+
+            successful = 0
+            total_documents = 0
+
+            # Process each image in the folder
+            for filename in os.listdir(folder_path):
+                if filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                    total_documents += 1
+                    file_path = os.path.join(folder_path, filename)
+
+                    try:
+                        # Calculate content hash for duplicate detection
+                        content_hash = ProcessedDocument.calculate_content_hash(file_path)
+
+                        # Check for duplicates
+                        duplicate = ProcessedDocument.objects.filter(
+                            content_hash=content_hash
+                        ).first()
+
+                        # Process the image
+                        with open(file_path, "rb") as img_file:
+                            # Get file size
+                            img_file.seek(0, 2)  # Seek to end
+                            file_size = img_file.tell()
+                            img_file.seek(0)  # Back to start
+
+                            # Process the image
+                            result = self.process_single(img_file)
+
+                            # Create ProcessedDocument
+                            doc = ProcessedDocument.objects.create(
+                                batch=batch,
+                                filename=filename,
+                                content_hash=content_hash,
+                                is_duplicate=duplicate is not None,
+                                duplicate_of=duplicate,
+                                title=result.get("title"),
+                                chapter=result.get("chapter"),
+                                section_pc=result.get("section_pc"),
+                                section=result.get("section"),
+                                subsection=result.get("subsection"),
+                                extracted_text=result.get("extracted_text"),
+                                ocr_version=result.get("ocr_version"),
+                                ocr_confidence=result.get("ocr_confidence"),
+                                processing_params=result.get("processing_params"),
+                                status="success",
+                            )
+
+                            # Save the original file
+                            with open(file_path, "rb") as f:
+                                doc.original_file.save(filename, File(f), save=True)
+
+                            # Create text content file
+                            text_filename = f"{os.path.splitext(filename)[0]}.txt"
+                            text_content = result.get("extracted_text", "")
+
+                            # Save text content
+                            from django.core.files.base import ContentFile
+
+                            doc.text_content.save(
+                                text_filename, ContentFile(text_content.encode("utf-8")), save=True
+                            )
+
+                            successful += 1
+
+                    except Exception as e:
+                        logger.error(f"Error processing {filename}: {str(e)}")
+                        # Create error document
+                        ProcessedDocument.objects.create(
+                            batch=batch,
+                            filename=filename,
+                            content_hash=ProcessedDocument.calculate_content_hash(file_path),
+                            status="failed",
+                            error_message=str(e),
+                        )
+
+            # Update batch status and statistics
+            batch.total_documents = total_documents
+            batch.successful_documents = (
+                (successful / total_documents * 100) if total_documents > 0 else 0
+            )
+            batch.status = "completed"
+            batch.save()
+
+            return {
+                "batch_id": batch.id,
+                "successful": successful,
+                "total_documents": total_documents,
+            }
+
+        except Exception as e:
+            if "batch" in locals():
+                batch.status = "failed"
+                batch.save()
+            logger.error(f"Error in batch processing: {str(e)}")
+            raise
+
+    def get_document_stats(self) -> Dict[str, Any]:
+        """Get statistics about processed documents."""
+        from main.models import ProcessedDocument
+
+        try:
+            total_docs = ProcessedDocument.objects.count()
+            successful_docs = ProcessedDocument.objects.filter(status="success").count()
+            error_docs = ProcessedDocument.objects.filter(status="error").count()
+            duplicate_docs = ProcessedDocument.objects.filter(is_duplicate=True).count()
+
+            # Get average OCR confidence
+            avg_confidence = ProcessedDocument.objects.filter(
+                status="success", ocr_confidence__isnull=False
+            ).values_list("ocr_confidence", flat=True)
+            avg_confidence = sum(avg_confidence) / len(avg_confidence) if avg_confidence else 0
+
+            return {
+                "total_documents": total_docs,
+                "successful_documents": successful_docs,
+                "error_documents": error_docs,
+                "duplicate_documents": duplicate_docs,
+                "average_ocr_confidence": avg_confidence,
+            }
+        except Exception as e:
+            logger.error(f"Error getting document stats: {str(e)}")
+            raise
+
+    def search_documents(self, query: str) -> List[Dict[str, Any]]:
+        """Search for documents based on metadata or content."""
+        from main.models import ProcessedDocument
+
+        try:
+            # Search in metadata and content
+            query_filters = [
+                Q(title__icontains=query),
+                Q(chapter__icontains=query),
+                Q(section_pc__icontains=query),
+                Q(section__icontains=query),
+                Q(subsection__icontains=query),
+                Q(extracted_text__icontains=query),
+            ]
+            docs = ProcessedDocument.objects.filter(
+                reduce(operator.or_, query_filters)
+            ).select_related("batch")
+
+            results = []
+            for doc in docs:
+                results.append(
+                    {
+                        "id": doc.id,
+                        "filename": doc.filename,
+                        "title": doc.title,
+                        "chapter": doc.chapter,
+                        "section_pc": doc.section_pc,
+                        "section": doc.section,
+                        "subsection": doc.subsection,
+                        "batch_name": doc.batch.name,
+                        "created_at": doc.created_at,
+                        "status": doc.status,
+                        "ocr_confidence": doc.ocr_confidence,
+                    }
+                )
+
+            return results
+        except Exception as e:
+            logger.error(f"Error searching documents: {str(e)}")
+            raise
 
     def cleanup(self) -> None:
         """Clean up temporary files and directories."""
@@ -148,110 +379,6 @@ class DocClassicProcessor:
             logger.info("Cleanup complete")
         except Exception as e:
             logger.error(f"Error during cleanup: {str(e)}")
-
-    def process_folder(
-        self, folder_path: str, batch_name: str = None, user: Any = None
-    ) -> dict[str, Any]:
-        """Process all image files in a folder and return batch information."""
-        try:
-            # Create a new batch
-            from main.models import DocumentBatch, ProcessedDocument
-
-            batch = DocumentBatch.objects.create(
-                name=batch_name or f"Batch {uuid.uuid4()}",
-                status="processing",
-                user=user,
-            )
-
-            successful = 0
-            total_documents = 0
-
-            # Process each file in the folder
-            for filename in os.listdir(folder_path):
-                if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                    total_documents += 1
-                    file_path = os.path.join(folder_path, filename)
-
-                    try:
-                        # Create a file object from the path
-                        with open(file_path, "rb") as f:
-                            from django.core.files.uploadedfile import InMemoryUploadedFile
-
-                            file = InMemoryUploadedFile(
-                                f,
-                                None,
-                                filename,
-                                "image/jpeg",
-                                os.path.getsize(file_path),
-                                None,
-                            )
-
-                            # Process the file
-                            result = self.process_single(file)
-
-                            # Create ProcessedDocument - store the full paths
-                            ProcessedDocument.objects.create(
-                                batch=batch,
-                                filename=filename,
-                                original_path=result["original_path"],
-                                text_path=result["text_path"],
-                                status="success",
-                            )
-                            successful += 1
-
-                    except Exception as e:
-                        logger.error(f"Error processing {filename}: {str(e)}")
-                        ProcessedDocument.objects.create(
-                            batch=batch,
-                            filename=filename,
-                            status="failed",
-                            error_message=str(e),
-                        )
-
-            # Update batch status
-            batch.status = "completed"
-            batch.save()
-
-            return {
-                "batch_id": batch.id,
-                "successful": successful,
-                "total_documents": total_documents,
-            }
-
-        except Exception as e:
-            logger.error(f"Error processing folder: {str(e)}")
-            if "batch" in locals():
-                batch.status = "failed"
-                batch.save()
-            raise Exception(f"Error processing folder: {str(e)}")
-
-    def get_batch_info(self, batch_id: int) -> dict[str, Any]:
-        """Get information about a specific batch."""
-        try:
-            from main.models import DocumentBatch
-
-            batch = DocumentBatch.objects.get(id=batch_id)
-            documents = batch.documents.all()
-
-            return {
-                "batch_id": batch.id,
-                "name": batch.name,
-                "status": batch.status,
-                "created_at": batch.created_at,
-                "documents": [
-                    {
-                        "filename": doc.filename,
-                        "status": doc.status,
-                        "error_message": doc.error_message,
-                    }
-                    for doc in documents
-                ],
-            }
-        except DocumentBatch.DoesNotExist:
-            raise ValueError(f"Batch {batch_id} not found")
-        except Exception as e:
-            logger.error(f"Error getting batch info: {str(e)}")
-            raise Exception(f"Error getting batch info: {str(e)}")
 
 
 def main() -> None:

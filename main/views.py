@@ -7,6 +7,7 @@ and document management.
 
 import glob
 import json
+import logging
 import os
 import shutil
 import time
@@ -22,6 +23,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
+from django.db import transaction
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
@@ -34,6 +36,8 @@ from .utils.image_groq import GroqImageProcessor
 from .utils.image_llama import LlamaImageProcessor
 from .utils.image_open import OpenAIImageProcessor
 from .utils.image_processor import ImageProcessor
+
+logger = logging.getLogger(__name__)
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -334,6 +338,17 @@ def image_groq(request: HttpRequest) -> HttpResponse:
             # Get the uploaded file
             uploaded_file = request.FILES["image"]
 
+            # Get the file extension from the original filename
+            file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+
+            # Validate file extension
+            if file_extension not in [".pdf", ".jpg", ".jpeg", ".png"]:
+                error_msg = (
+                    "Invalid file type. Please upload PDF or image files " "(jpg, jpeg, png)."
+                )
+                messages.error(request, error_msg)
+                return redirect("process_doc_classic")
+
             # Save the file temporarily
             png_directory = os.path.join(settings.BASE_DIR, "main", "static", "images", "png_files")
             if not os.path.exists(png_directory):
@@ -396,13 +411,23 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
         request: The HTTP request object.
 
     Returns:
-        The rendered document processing page or redirects to home after successful processing.
+        The rendered document processing page or redirects after successful
+        processing.
     """
-    results = []
-    if request.method == "POST":
-        processor = DocClassicProcessor()
+    processor = DocClassicProcessor()
+    context = {"results": [], "stats": None, "search_results": None, "search_query": None}
 
-        try:
+    try:
+        # Get document statistics
+        context["stats"] = processor.get_document_stats()
+
+        # Handle search
+        search_query = request.GET.get("search")
+        if search_query:
+            context["search_results"] = processor.search_documents(search_query)
+            context["search_query"] = search_query
+
+        if request.method == "POST":
             if request.FILES.getlist("documents"):
                 # Handle multiple file upload
                 documents = request.FILES.getlist("documents")
@@ -428,12 +453,24 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
                 successful_docs = batch.documents.filter(status="success")
 
                 for doc in successful_docs:
-                    results.append(
+                    context["results"].append(
                         {
+                            "id": doc.id,
                             "filename": doc.filename,
+                            "title": doc.title,
+                            "chapter": doc.chapter,
+                            "section_pc": doc.section_pc,
+                            "section": doc.section,
+                            "subsection": doc.subsection,
                             "original_url": doc.original_url,
                             "text_url": doc.text_url,
                             "text": doc.get_text_content(),
+                            "ocr_confidence": doc.ocr_confidence,
+                            "ocr_version": doc.ocr_version,
+                            "created_at": doc.created_at,
+                            "status": doc.status,
+                            "is_duplicate": doc.is_duplicate,
+                            "processing_params": doc.processing_params,
                         }
                     )
 
@@ -472,12 +509,24 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
                     ).first()
 
                     if doc:
-                        results.append(
+                        context["results"].append(
                             {
+                                "id": doc.id,
                                 "filename": doc.filename,
+                                "title": doc.title,
+                                "chapter": doc.chapter,
+                                "section_pc": doc.section_pc,
+                                "section": doc.section,
+                                "subsection": doc.subsection,
                                 "original_url": doc.original_url,
                                 "text_url": doc.text_url,
                                 "text": doc.get_text_content(),
+                                "ocr_confidence": doc.ocr_confidence,
+                                "ocr_version": doc.ocr_version,
+                                "created_at": doc.created_at,
+                                "status": doc.status,
+                                "is_duplicate": doc.is_duplicate,
+                                "processing_params": doc.processing_params,
                             }
                         )
                         messages.success(request, "Document processed successfully!")
@@ -487,19 +536,19 @@ def process_doc_classic(request: HttpRequest) -> HttpResponse:
                 # Clean up temp directory
                 shutil.rmtree(temp_dir)
 
-        except ValueError as e:
-            messages.error(request, str(e))
-        except Exception as e:
-            messages.error(request, f"Error processing document(s): {str(e)}")
-        finally:
-            processor.cleanup()
+    except ValueError as e:
+        messages.error(request, str(e))
+    except Exception as e:
+        messages.error(request, f"Error processing document(s): {str(e)}")
+    finally:
+        processor.cleanup()
 
-    return render(request, "main/admin/doc_classic.html", {"results": results})
+    return render(request, "main/admin/doc_classic.html", context)
 
 
-@login_required
+@staff_member_required
 def view_document_batches(request: HttpRequest) -> HttpResponse:
-    """View all document batches for the current user.
+    """View all document batches. Admin only.
 
     Args:
         request: The HTTP request object.
@@ -507,13 +556,13 @@ def view_document_batches(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered document batches page.
     """
-    batches = DocumentBatch.objects.filter(user=request.user).order_by("-created_at")
-    return render(request, "main/user/doc_batches.html", {"batches": batches})
+    batches = DocumentBatch.objects.all().order_by("-created_at")
+    return render(request, "main/admin/doc_batches.html", {"batches": batches})
 
 
-@login_required
-def view_batch_details(request: HttpRequest, batch_id: int) -> HttpResponse:
-    """View details of a specific document batch.
+@staff_member_required
+def view_batch_details(request: HttpRequest, batch_id: str) -> HttpResponse:
+    """View details of a specific document batch. Admin only.
 
     Args:
         request: The HTTP request object.
@@ -523,21 +572,27 @@ def view_batch_details(request: HttpRequest, batch_id: int) -> HttpResponse:
         The rendered batch details page.
     """
     try:
-        batch = DocumentBatch.objects.get(id=batch_id, user=request.user)
+        batch = DocumentBatch.objects.get(id=batch_id)
         documents = batch.documents.all().order_by("-processed_at")
+
+        # Calculate success rate
+        total_docs = documents.count()
+        successful_docs = documents.filter(status="success").count()
+        batch.successful_documents = (successful_docs / total_docs * 100) if total_docs > 0 else 0
+
         return render(
             request,
-            "main/user/doc_batch_details.html",
+            "main/admin/doc_batch_details.html",
             {"batch": batch, "documents": documents},
         )
     except DocumentBatch.DoesNotExist:
         messages.error(request, "Batch not found.")
-        return redirect("view_document_batches")
+        return redirect("doc_batches")
 
 
-@login_required
-def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
-    """Delete a document batch and all its associated files.
+@staff_member_required
+def delete_batch(request: HttpRequest, batch_id: str) -> HttpResponse:
+    """Delete a document batch and all its associated files. Admin only.
 
     Args:
         request: The HTTP request object.
@@ -548,47 +603,51 @@ def delete_batch(request: HttpRequest, batch_id: int) -> HttpResponse:
     """
     if request.method == "POST":
         try:
-            batch = DocumentBatch.objects.get(id=batch_id)
-            if batch.user != request.user and not request.user.is_staff:
-                messages.error(
-                    request,
-                    "You do not have permission to access this page. "
-                    "Please contact an administrator.",
-                )
-                return redirect("home")
+            with transaction.atomic():
+                # Get the batch with a select_for_update to lock the row
+                batch = DocumentBatch.objects.select_for_update().get(id=batch_id)
 
-            # Delete associated documents first
-            documents = ProcessedDocument.objects.filter(batch=batch)
-            for doc in documents:
-                try:
-                    # Delete the physical files
-                    if doc.original_path:
-                        full_path = os.path.join(settings.MEDIA_ROOT, doc.original_path.lstrip("/"))
-                        if os.path.exists(full_path):
-                            os.remove(full_path)
+                # Get all documents in the batch
+                documents = ProcessedDocument.objects.select_for_update().filter(batch=batch)
 
-                    if doc.text_path:
-                        full_path = os.path.join(settings.MEDIA_ROOT, doc.text_path.lstrip("/"))
-                        if os.path.exists(full_path):
-                            os.remove(full_path)
-                except Exception as e:
-                    print(f"Error deleting files for document {doc.id}: {e}")
+                # Delete each document's files if they exist
+                for doc in documents:
+                    # Delete original file if it exists
+                    if hasattr(doc, "original_file"):
+                        try:
+                            # Check if the file field has an actual file
+                            if doc.original_file and doc.original_file.name:
+                                storage = doc.original_file.storage
+                                if storage.exists(doc.original_file.name):
+                                    storage.delete(doc.original_file.name)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error deleting original file for document {doc.id}: {str(e)}"
+                            )
 
-                # Delete the document record
-                try:
-                    doc.delete()
-                except Exception as e:
-                    print(f"Error deleting document record {doc.id}: {e}")
+                    # Delete text content if it exists
+                    if hasattr(doc, "text_content"):
+                        try:
+                            # Check if the file field has an actual file
+                            if doc.text_content and doc.text_content.name:
+                                storage = doc.text_content.storage
+                                if storage.exists(doc.text_content.name):
+                                    storage.delete(doc.text_content.name)
+                        except Exception as e:
+                            logger.warning(
+                                f"Error deleting text content for document {doc.id}: {str(e)}"
+                            )
 
-            # Delete the batch itself
-            batch.delete()
-            messages.success(request, "Batch deleted successfully.")
+                # Delete the batch first (this will cascade delete documents)
+                batch.delete()
+
+                messages.success(request, "Batch and associated files deleted successfully.")
 
         except DocumentBatch.DoesNotExist:
             messages.error(request, "Batch not found.")
         except Exception as e:
-            print(f"Error in delete_batch: {e}")
-            messages.error(request, f"Error deleting batch: {str(e)}")
+            logger.error(f"Error in delete_batch: {str(e)}")
+            messages.error(request, "Error deleting batch. Please try again or contact support.")
 
     return redirect("doc_batches")
 
