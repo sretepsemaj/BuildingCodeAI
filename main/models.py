@@ -163,6 +163,52 @@ class ProcessedDocument(models.Model):
         ordering = ["-processed_at"]
 
 
+class ProcessedImage(models.Model):
+    """Represents a processed image with analysis results."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="processed_images")
+    original_file = models.FileField(upload_to="images/original/")
+    processed_file = models.FileField(upload_to="images/processed/", null=True, blank=True)
+    analysis_result = models.JSONField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("processing", "Processing"),
+            ("completed", "Completed"),
+            ("failed", "Failed"),
+        ],
+        default="processing",
+    )
+    error_message = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        """Meta options for ProcessedImage model."""
+
+        verbose_name = "Processed Image"
+        verbose_name_plural = "Processed Images"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        """Return a string representation of the processed image."""
+        return f"{self.original_file.name} ({self.status})"
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
+        """Override delete to ensure all files are cleaned up."""
+        # Delete the physical files
+        if self.original_file:
+            if os.path.exists(self.original_file.path):
+                os.remove(self.original_file.path)
+        if self.processed_file:
+            if os.path.exists(self.processed_file.path):
+                os.remove(self.processed_file.path)
+
+        # Delete the model instance
+        return super().delete(*args, **kwargs)
+
+
 @receiver(pre_delete, sender=DocumentBatch)
 def delete_batch_files(
     sender: Type[DocumentBatch], instance: DocumentBatch, **kwargs: Dict[str, Any]
@@ -192,3 +238,25 @@ def delete_document_files(
     parent_dir = os.path.dirname(instance.original_path)
     if os.path.exists(parent_dir) and not os.listdir(parent_dir):
         shutil.rmtree(parent_dir)
+
+
+@receiver(pre_delete, sender=ProcessedImage)
+def delete_image_files(
+    sender: Type[ProcessedImage],
+    instance: ProcessedImage,
+    **kwargs: Dict[str, Any],
+) -> None:
+    """Delete files associated with a processed image before deleting the image."""
+    try:
+        # Delete the original file if it exists
+        if instance.original_file:
+            if os.path.exists(instance.original_file.path):
+                os.remove(instance.original_file.path)
+
+        # Delete the processed file if it exists
+        if instance.processed_file:
+            if os.path.exists(instance.processed_file.path):
+                os.remove(instance.processed_file.path)
+
+    except Exception as e:
+        print(f"Error deleting image files: {e}")

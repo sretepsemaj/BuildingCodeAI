@@ -23,7 +23,7 @@ class ChatMessage(TypedDict):
     """Type for chat message content."""
 
     role: str
-    content: List[Dict[str, Any]]
+    content: Dict[str, Any]
 
 
 class GroqImageProcessor:
@@ -114,15 +114,31 @@ class GroqImageProcessor:
             base64_image = self.encode_image(image_path)
 
             # Prepare the prompt for the image analysis
-            prompt = (
-                "Analyze this image and provide a detailed description focusing on "
-                "plumbing-related elements, fixtures, and any visible issues."
-            )
-
-            # Format the message for the chat completion
             messages = [
-                {"role": "system", "content": "You are a professional plumber analyzing images."},
-                {"role": "user", "content": f"{prompt}\n{base64_image}"},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "You are an expert plumbing code analyst. "
+                                "Please analyze this plumbing diagram or building plan:\n\n"
+                                "1. Identify plumbing fixtures, pipes, and components.\n"
+                                "2. Check compliance with plumbing codes and regulations.\n"
+                                "3. Highlight potential issues or code violations.\n"
+                                "4. Provide specific references to relevant code sections.\n"
+                                "5. Suggest improvements or corrections if needed.\n"
+                                "6. Note any safety concerns or requirements.\n\n"
+                                "Format your response in a clear, structured way that can be "
+                                "easily parsed for database storage."
+                            ),
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        },
+                    ],
+                }
             ]
 
             # Create a new client

@@ -1,9 +1,13 @@
 """Test module for image_groq.py."""
 
 import os
+import sys
 import unittest
 
-from image_groq import GroqImageProcessor
+from main.utils.image_groq import GroqImageProcessor
+
+# Add the project root to Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 # ANSI color codes
@@ -27,7 +31,7 @@ class TestGroqImageProcessor(unittest.TestCase):
         self.processor = GroqImageProcessor()
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.test_image = os.path.join(
-            base_dir, "static", "images", "png_files", "6Screenshot4.png"
+            base_dir, "static", "images", "png_files", "1732664257.2506502_6Screenshot4.png"
         )
 
     def test_process_image(self) -> None:
