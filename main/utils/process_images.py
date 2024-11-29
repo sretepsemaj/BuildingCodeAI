@@ -44,5 +44,6 @@ def main():
             if file["base64_error"]:
                 print(f"Base64 Error: {file['base64_error']}")
 
+
 if __name__ == "__main__":
     main()
