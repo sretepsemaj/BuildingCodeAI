@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from main.utils.text_json import process_directory, save_json
+from json_processor import process_directory, process_file, save_json
 
 
 class TestTextJson(unittest.TestCase):
@@ -93,6 +93,27 @@ class TestTextJson(unittest.TestCase):
             json_data = json.load(f)
         self.assertEqual(len(json_data), 1)
         self.assertEqual(json_data[0]["file_path"], self.sample_file_path)
+
+    def test_metadata_extraction(self):
+        """Test extraction of metadata from text content."""
+        test_content = """
+        CHAPTER 1
+        ADMINISTRATION
+
+        101.1 Title.
+        This code shall be known as the "New York City Plumbing Code."
+        All section numbers in this code shall be preceded by "PC."
+        """
+
+        with open(os.path.join(self.input_dir, "metadata_test.txt"), "w") as f:
+            f.write(test_content)
+
+        data = process_file(os.path.join(self.input_dir, "metadata_test.txt"))
+
+        # Verify metadata
+        self.assertEqual(data["metadata"]["chapter"], 1)
+        self.assertEqual(data["metadata"]["title"], "New York City Plumbing Code")
+        self.assertEqual(data["metadata"]["chapter_title"], "ADMINISTRATION")
 
 
 if __name__ == "__main__":

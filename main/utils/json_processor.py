@@ -58,6 +58,35 @@ def extract_section_data(file_content: str) -> List[Dict[str, str]]:
     return sections
 
 
+def extract_metadata(text: str) -> Dict[str, Any]:
+    """Extract metadata from the text content.
+
+    Args:
+        text: Raw text content to analyze
+
+    Returns:
+        dict: Dictionary containing metadata like chapter, title, etc.
+    """
+    metadata = {"chapter": None, "title": None, "chapter_title": None}
+
+    # Extract chapter number
+    chapter_match = re.search(r"CHAPTER\s+(\d+)", text)
+    if chapter_match:
+        metadata["chapter"] = int(chapter_match.group(1))
+
+    # Extract title (e.g., "New York City Plumbing Code")
+    title_match = re.search(r'"([^"]*City Plumbing Code[^"]*)"', text)
+    if title_match:
+        metadata["title"] = title_match.group(1).rstrip('."')
+
+    # Extract chapter title (e.g., "ADMINISTRATION")
+    chapter_title_match = re.search(r"CHAPTER\s+\d+\s*\n\s*([A-Z][A-Z\s]+)(?:\n|$)", text)
+    if chapter_title_match:
+        metadata["chapter_title"] = chapter_title_match.group(1).strip()
+
+    return metadata
+
+
 def get_base64_path(text_file_path: str) -> Optional[str]:
     """Get the path to the corresponding base64 image file.
 
@@ -106,12 +135,14 @@ def process_file(file_path: str) -> Dict[str, Any]:
         logger.error(f"Failed to decode file {file_path}: {str(e)}")
         raise
 
+    metadata = extract_metadata(content)
     sections = extract_section_data(content)
     base64_path = get_base64_path(file_path)
 
     data = {
         "file_path": file_path,
         "base64_file_path": base64_path,
+        "metadata": metadata,
         "raw_text": content,
         "sections": sections,
     }
