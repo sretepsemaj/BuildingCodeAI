@@ -1,163 +1,104 @@
-"""Module for processing text files and generating structured JSON data.
-
-This module provides functionality to:
-1. Extract structured sections from text files
-2. Process base64 image paths
-3. Generate and save JSON output
-"""
+"""Module for processing text files into JSON format."""
 
 import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Constants
-SECTION_PATTERN = r"(SECTION PC \d+|\d+(\.\d+)*|\d+\.?\s+[A-Za-z])"
 TEXT_FILE_EXT = ".txt"
-IMAGE_FILE_EXT = ".jpg"
-BASE64_DIR = "optimized/base64"
-
-
-def extract_section_data(file_content: str) -> List[Dict[str, str]]:
-    """Extract structured section data from file content.
-
-    Args:
-        file_content: Raw text content from the file.
-
-    Returns:
-        List of dictionaries containing section and content pairs.
-    """
-    sections: List[Dict[str, str]] = []
-    current_section: Optional[str] = None
-    current_content: List[str] = []
-
-    lines = file_content.splitlines()
-    for line in lines:
-        section_match = re.match(SECTION_PATTERN, line.strip())
-        if section_match:
-            logger.debug(f"Matched section: {line.strip()}")
-            if current_section:
-                sections.append(
-                    {"section": current_section, "content": "\n".join(current_content).strip()}
-                )
-            current_section = line.strip()
-            current_content = []
-        else:
-            current_content.append(line)
-
-    if current_section:
-        sections.append({"section": current_section, "content": "\n".join(current_content).strip()})
-
-    return sections
-
-
-def extract_metadata(text: str) -> Dict[str, Any]:
-    """Extract metadata from the text content.
-
-    Args:
-        text: Raw text content to analyze
-
-    Returns:
-        dict: Dictionary containing metadata like chapter, title, etc.
-    """
-    metadata = {"chapter": None, "title": None, "chapter_title": None}
-
-    # Extract chapter number
-    chapter_match = re.search(r"CHAPTER\s+(\d+)", text)
-    if chapter_match:
-        metadata["chapter"] = int(chapter_match.group(1))
-
-    # Extract title (e.g., "New York City Plumbing Code")
-    title_match = re.search(r'"([^"]*City Plumbing Code[^"]*)"', text)
-    if title_match:
-        metadata["title"] = title_match.group(1).rstrip('."')
-
-    # Extract chapter title (e.g., "ADMINISTRATION")
-    chapter_title_match = re.search(r"CHAPTER\s+\d+\s*\n\s*([A-Z][A-Z\s]+)(?:\n|$)", text)
-    if chapter_title_match:
-        metadata["chapter_title"] = chapter_title_match.group(1).strip()
-
-    return metadata
-
-
-def get_base64_path(text_file_path: str) -> Optional[str]:
-    """Get the path to the corresponding base64 image file.
-
-    Args:
-        text_file_path: Path to the text file.
-
-    Returns:
-        Path to corresponding base64 image file or None if not found.
-    """
-    try:
-        file_name = os.path.basename(text_file_path).replace(TEXT_FILE_EXT, IMAGE_FILE_EXT)
-        base_dir = os.path.dirname(os.path.dirname(text_file_path))
-        base64_path = os.path.join(base_dir, BASE64_DIR, file_name)
-
-        logger.debug(f"Looking for base64 image at: {base64_path}")
-
-        if os.path.exists(base64_path):
-            return base64_path
-        logger.warning(f"Base64 image not found at: {base64_path}")
-        return None
-    except Exception as e:
-        logger.error(f"Error getting base64 path: {str(e)}")
-        return None
 
 
 def process_file(file_path: str) -> Dict[str, Any]:
-    """Process a single file and extract structured data.
+    """Process a single text file and extract data.
 
     Args:
-        file_path: Path to the text file to process.
+        file_path: Path to text file to process.
 
     Returns:
-        Dictionary containing file data, including path and sections.
+        Dictionary containing processed file data.
 
     Raises:
-        FileNotFoundError: If the input file doesn't exist.
-        UnicodeDecodeError: If the file cannot be decoded as UTF-8.
+        FileNotFoundError: If file_path does not exist.
+        ValueError: If file cannot be processed.
     """
-    if not os.path.exists(file_path):
+    if not os.path.isfile(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
     try:
         with open(file_path, "r", encoding="utf-8") as file:
-            content = file.read()
-    except UnicodeDecodeError as e:
-        logger.error(f"Failed to decode file {file_path}: {str(e)}")
-        raise
+            raw_text = file.read()
 
-    metadata = extract_metadata(content)
-    sections = extract_section_data(content)
-    base64_path = get_base64_path(file_path)
+        # Initialize data structure
+        data = {
+            "file_path": file_path,
+            "raw_text": raw_text,
+            "sections": [],
+            "metadata": {},
+        }
 
-    data = {
-        "file_path": file_path,
-        "base64_file_path": base64_path,
-        "metadata": metadata,
-        "raw_text": content,
-        "sections": sections,
-    }
+        # Split text into sections
+        current_section = ""
+        current_content = []
 
-    return data
+        for line in raw_text.split("\n"):
+            # Check if line starts with a section number (e.g., "101.1", "102", etc.)
+            if re.match(r"^\d+\.?\d*\.?\d*\s+", line):
+                # Save previous section if it exists
+                if current_section and current_content:
+                    data["sections"].append(
+                        {
+                            "section": current_section,
+                            "content": "\n".join(current_content),
+                        }
+                    )
+                # Start new section
+                current_section = line
+                current_content = []
+            else:
+                # Add line to current section content
+                if line.strip():  # Only add non-empty lines
+                    current_content.append(line)
+
+        # Add last section
+        if current_section and current_content:
+            data["sections"].append(
+                {"section": current_section, "content": "\n".join(current_content)}
+            )
+
+        return data
+
+    except Exception as e:
+        logger.error(f"Error processing file {file_path}: {str(e)}")
+        raise ValueError(f"Failed to process file: {str(e)}")
 
 
-def process_directory(directory_path: str) -> List[Dict[str, Any]]:
-    """Process all text files in a directory.
+def get_chapter_from_filename(filename: str) -> str:
+    """Extract chapter number from filename and create new filename.
+
+    Example: NYCP2ch_1pg.txt -> NYCP2CH.json
+    """
+    # Extract chapter number from filename (e.g., NYCP2ch_1pg.txt -> 2)
+    match = re.match(r"NYCP(\d+)ch_", filename)
+    if match:
+        chapter_num = match.group(1)
+        return f"NYCP{chapter_num}CH.json"
+    return "text_data.json"  # fallback name
+
+
+def process_directory(directory_path: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Process all text files in a directory, skipping subdirectories.
 
     Args:
         directory_path: Path to directory containing text files.
 
     Returns:
-        List of dictionaries containing processed file data.
+        Dictionary of chapter filenames and their file data.
 
     Raises:
         NotADirectoryError: If directory_path is not a directory.
@@ -165,57 +106,84 @@ def process_directory(directory_path: str) -> List[Dict[str, Any]]:
     if not os.path.isdir(directory_path):
         raise NotADirectoryError(f"Not a directory: {directory_path}")
 
-    json_data = []
-    for filename in os.listdir(directory_path):
-        if filename.endswith(TEXT_FILE_EXT):
-            file_path = os.path.join(directory_path, filename)
-            try:
-                data = process_file(file_path)
-                json_data.append(data)
-                logger.info(f"Successfully processed file: {filename}")
-            except Exception as e:
-                logger.error(f"Failed to process file {filename}: {str(e)}")
-                continue
+    # Group files by chapter
+    chapter_files = {}
 
-    return json_data
+    # Get all items in directory
+    items = os.listdir(directory_path)
+    for item in items:
+        item_path = os.path.join(directory_path, item)
+
+        # Skip if it's a directory
+        if os.path.isdir(item_path):
+            logger.info(f"Skipping directory: {item}")
+            continue
+
+        # Skip if not a text file
+        if not item.endswith(TEXT_FILE_EXT):
+            logger.info(f"Skipping non-text file: {item}")
+            continue
+
+        try:
+            data = process_file(item_path)
+
+            # Get chapter from filename
+            chapter_filename = get_chapter_from_filename(item)
+
+            # Group by chapter
+            if chapter_filename not in chapter_files:
+                chapter_files[chapter_filename] = []
+            chapter_files[chapter_filename].append(data)
+
+            logger.info(f"Successfully processed file: {item}")
+        except Exception as e:
+            logger.error(f"Failed to process file {item}: {str(e)}")
+            continue
+
+    return chapter_files
 
 
-def save_json(data: List[Dict[str, Any]], output_file: str) -> None:
-    """Save the extracted data to a JSON file.
+def save_json(data: Dict[str, List[Dict[str, Any]]], output_dir: str) -> None:
+    """Save the extracted data to JSON files by chapter.
 
     Args:
-        data: List of dictionaries containing file data.
-        output_file: Path where JSON file will be saved.
+        data: Dictionary of chapter filenames and their file data.
+        output_dir: Directory where JSON files will be saved.
 
     Raises:
-        OSError: If the output file cannot be written.
+        OSError: If the output files cannot be written.
     """
-    try:
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-        with open(output_file, "w", encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
-        logger.info(f"Successfully saved JSON to: {output_file}")
-    except OSError as e:
-        logger.error(f"Failed to save JSON file: {str(e)}")
-        raise
+    os.makedirs(output_dir, exist_ok=True)
+
+    for chapter_filename, chapter_data in data.items():
+        output_file = os.path.join(output_dir, chapter_filename)
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(chapter_data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Successfully saved JSON to: {output_file}")
+        except OSError as e:
+            logger.error(f"Failed to save JSON to {output_file}: {str(e)}")
+            raise
 
 
 def main() -> None:
-    """Main function to process text files and save as JSON."""
+    """Process text files and generate JSON output."""
     try:
-        input_directory = (
-            "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code/text"
-        )
-        output_directory = (
-            "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code/json"
-        )
-        os.makedirs(output_directory, exist_ok=True)
-        output_json = os.path.join(output_directory, "text_data.json")
+        # Set up paths
+        base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
+        input_dir = os.path.join(base_path, "text")
+        output_dir = os.path.join(base_path, "json")
 
-        data = process_directory(input_directory)
-        save_json(data, output_json)
+        # Process files and save by chapter
+        data = process_directory(input_dir)
+        save_json(data, output_dir)
+
+        # Log processing summary
+        total_files = sum(len(files) for files in data.values())
+        logger.info(f"Processed {total_files} files. Results saved to {output_dir}")
+
     except Exception as e:
-        logger.error(f"Processing failed: {str(e)}")
+        logger.error(f"Error processing files: {str(e)}")
         raise
 
 

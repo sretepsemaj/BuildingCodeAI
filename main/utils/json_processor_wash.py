@@ -1,4 +1,4 @@
-"""Script to process JSON files and extract metadata from Chapter 1."""
+"""Script to process JSON files and extract metadata from all chapters."""
 
 import json
 import logging
@@ -11,138 +11,180 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def extract_chapter1_metadata(data: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Find Chapter 1 and extract its metadata.
+def extract_metadata(data: List[Dict[str, Any]], chapter_num: int) -> Optional[Dict[str, Any]]:
+    """Find chapter and extract its metadata.
 
     Args:
         data: List of document dictionaries
+        chapter_num: Chapter number to process
 
     Returns:
-        Dict containing metadata from Chapter 1, or None if not found
+        Dict containing metadata from the chapter, or None if not found
     """
-    # Find Chapter 1
+    chapter_pattern = f"NYCP{chapter_num}ch_"
+
+    # Find the chapter
     for doc in data:
-        if "NYCP1ch_1pg" in doc["file_path"]:
-            # Extract title from section 101.1
+        if chapter_pattern in doc["file_path"]:
+            # Extract title from section X01.1 where X is the chapter number
             title = None
+            chapter_title = None
+
             for section in doc.get("sections", []):
-                if "101.1 Title" in section["section"]:
+                # Look for title in section X01.1
+                if f"{chapter_num}01.1" in section["section"]:
                     # Extract the title from the quoted text
-                    title_match = re.search(r'"([^"]*)"', section["section"])
+                    title_match = re.search(r'"([^"]*)"', section["content"])
                     if title_match:
                         title = title_match.group(1).strip()
-                        break
+
+                # Look for chapter title (usually in all caps at the start)
+                if not chapter_title:
+                    lines = section["content"].split("\n")
+                    for line in lines:
+                        if line.isupper() and len(line.strip()) > 0:
+                            chapter_title = line.strip()
+                            break
+
+                if title and chapter_title:
+                    break
 
             # Create metadata
             metadata = {
-                "chapter": 1,
-                "title": title or "New York City Plumbing Code",
-                "chapter_title": "ADMINISTRATION",
+                "chapter": chapter_num,
+                "title": title or f"New York City Plumbing Code Chapter {chapter_num}",
+                "chapter_title": chapter_title or f"CHAPTER {chapter_num}",
             }
             return metadata
 
     return None
 
 
-def extract_chapter_number(raw_text: str) -> Optional[int]:
-    """Extract chapter number from the raw text content.
-
-    Args:
-        raw_text: Raw text content of the document
-
-    Returns:
-        Chapter number if found, None otherwise
-    """
-    # Look for chapter number in text
-    chapter_patterns = [
-        r"CHAPTER\s+(\d+)",  # Matches "CHAPTER 1"
-        r"SECTION\s+PC\s+(\d+)",  # Matches "SECTION PC 101"
-    ]
-
-    for pattern in chapter_patterns:
-        match = re.search(pattern, raw_text)
-        if match:
-            chapter_num = int(match.group(1))
-            # If we find a section number like 101, extract just the first digit
-            if chapter_num > 20:  # Assuming no more than 20 chapters
-                chapter_num = int(str(chapter_num)[0])
-            return chapter_num
-
-    # If we haven't found a chapter number but we see "ADMINISTRATION", it's Chapter 1
-    if "ADMINISTRATION" in raw_text.split("\n")[0:3]:  # Check first few lines
-        return 1
-
-    return None
-
-
-def update_metadata(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Update metadata for all documents using Chapter 1 information.
+def update_metadata(data: List[Dict[str, Any]], chapter_num: int) -> List[Dict[str, Any]]:
+    """Update metadata for all documents in a chapter.
 
     Args:
         data: List of document dictionaries
+        chapter_num: Chapter number to process
 
     Returns:
         Updated list of document dictionaries
     """
-    # First get Chapter 1 metadata
-    ch1_metadata = extract_chapter1_metadata(data)
-    if not ch1_metadata:
-        logger.warning("Chapter 1 metadata not found!")
+    # Extract metadata from the chapter
+    metadata = extract_metadata(data, chapter_num)
+    if not metadata:
+        logger.warning(f"No metadata found for Chapter {chapter_num}")
         return data
 
-    # Update all documents
+    # Update all documents in this chapter
+    updated_data = []
     for doc in data:
-        # Extract chapter number from text content
-        chapter = extract_chapter_number(doc["raw_text"])
+        if f"NYCP{chapter_num}ch_" in doc["file_path"]:
+            doc["metadata"] = metadata
+        updated_data.append(doc)
 
-        # Create metadata using Chapter 1 as base
-        new_metadata = ch1_metadata.copy()
-
-        # Update chapter number from content
-        if chapter is not None:
-            new_metadata["chapter"] = chapter
-
-        # Keep existing chapter title if present
-        if doc["metadata"].get("chapter_title"):
-            new_metadata["chapter_title"] = doc["metadata"]["chapter_title"]
-
-        # Update document metadata
-        doc["metadata"] = new_metadata
-
-    return data
+    return updated_data
 
 
 def process_json_data(input_file: str, output_file: str) -> None:
-    """Process JSON data to update metadata using Chapter 1 information.
+    """Process JSON data to update metadata for all chapters.
 
     Args:
         input_file: Path to input JSON file
         output_file: Path to output JSON file
     """
     try:
-        # Read input JSON
+        # Load input data
         with open(input_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Update metadata
-        updated_data = update_metadata(data)
+        if not data:
+            logger.warning(f"No data found in {input_file}")
+            return
+
+        # Find all unique chapter numbers
+        chapter_nums = set()
+        for doc in data:
+            match = re.search(r"NYCP(\d+)ch_", doc["file_path"])
+            if match:
+                chapter_nums.add(int(match.group(1)))
+
+        # Process each chapter
+        processed_data = data
+        for chapter_num in sorted(chapter_nums):
+            processed_data = update_metadata(processed_data, chapter_num)
+            logger.info(f"Processed metadata for Chapter {chapter_num}")
 
         # Save processed data
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(updated_data, f, indent=4)
-
-        logger.info(f"Successfully processed JSON data and saved to {output_file}")
+            json.dump(processed_data, f, indent=2)
+        logger.info(f"Saved processed data to {output_file}")
 
     except Exception as e:
-        logger.error(f"Error processing JSON data: {str(e)}")
+        logger.error(f"Error processing {input_file}: {str(e)}")
+        raise
+
+
+def process_directory(input_dir: str, output_dir: str) -> None:
+    """Process all JSON files in a directory and save to output directory.
+
+    Args:
+        input_dir: Path to directory containing input JSON files
+        output_dir: Path to directory where processed JSON files will be saved
+    """
+    try:
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Process each JSON file in the directory
+        for filename in os.listdir(input_dir):
+            if filename.endswith(".json"):
+                input_file = os.path.join(input_dir, filename)
+                output_file = os.path.join(output_dir, filename)
+
+                logger.info(f"Processing {filename}...")
+
+                # Load and process the file
+                try:
+                    with open(input_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    if not data:
+                        logger.warning(f"No data found in {filename}")
+                        continue
+
+                    # Find all unique chapter numbers
+                    chapter_nums = set()
+                    for doc in data:
+                        match = re.search(r"NYCP(\d+)ch_", doc["file_path"])
+                        if match:
+                            chapter_nums.add(int(match.group(1)))
+
+                    # Process each chapter
+                    processed_data = data
+                    for chapter_num in sorted(chapter_nums):
+                        processed_data = update_metadata(processed_data, chapter_num)
+                        logger.info(f"Processed metadata for Chapter {chapter_num}")
+
+                    # Save processed data to output directory
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        json.dump(processed_data, f, indent=2)
+                    logger.info(f"Saved processed data to {output_file}")
+
+                except Exception as e:
+                    logger.error(f"Error processing {filename}: {str(e)}")
+                    continue
+
+    except Exception as e:
+        logger.error(f"Error processing directory {input_dir}: {str(e)}")
         raise
 
 
 if __name__ == "__main__":
     # Define input and output paths
     base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code/json"
-    input_path = os.path.join(base_path, "text_data.json")
-    output_path = os.path.join(base_path, "text_data_processed.json")
+    input_directory = os.path.join(base_path, "input")
+    output_directory = os.path.join(base_path, "output")
 
-    # Process the data
-    process_json_data(input_path, output_path)
+    # Process the directory
+    process_directory(input_directory, output_directory)

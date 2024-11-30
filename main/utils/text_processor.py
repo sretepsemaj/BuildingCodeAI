@@ -1,143 +1,157 @@
+"""Module for processing text files and extracting structured data."""
+
 import logging
 import os
+import re
 from typing import Dict, List, Optional
 
-import pytesseract
-from PIL import Image
-
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Constants
+SECTION_PATTERN = r"(SECTION PC \d+|\d+(\.\d+)*|\d+\.?\s+[A-Za-z])"
 
-class TextProcessor:
-    """Process optimized images using OCR to extract text content."""
 
-    def __init__(self, input_dir: str, output_dir: str):
-        """Initialize the TextProcessor.
+def extract_sections(text: str) -> List[Dict[str, str]]:
+    """Extract sections from text content.
 
-        Args:
-            input_dir: Directory containing optimized images for OCR
-            output_dir: Directory to save extracted text files
-        """
-        self.input_dir = input_dir
-        self.output_dir = output_dir
-        os.makedirs(output_dir, exist_ok=True)
+    Args:
+        text: Raw text content to process.
 
-    def process_image_to_text(self, image_path: str) -> Optional[str]:
-        """Convert a single image to text using OCR.
+    Returns:
+        List of dictionaries containing section and content pairs.
+    """
+    sections = []
+    current_section = None
+    current_content = []
 
-        Args:
-            image_path: Path to the image file
-
-        Returns:
-            Extracted text if successful, None otherwise
-        """
-        try:
-            image = Image.open(image_path)
-            text = pytesseract.image_to_string(image)
-            return text
-        except Exception as e:
-            logger.error(f"Error processing image {image_path}: {str(e)}")
-            return None
-
-    def save_text_to_file(self, text: str, output_path: str) -> bool:
-        """Save extracted text to a file.
-
-        Args:
-            text: Extracted text content
-            output_path: Path to save the text file
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                f.write(text)
-            return True
-        except Exception as e:
-            logger.error(f"Error saving text to {output_path}: {str(e)}")
-            return False
-
-    def process_all_images(self) -> Dict:
-        """Process all images in the input directory and save text files.
-
-        Returns:
-            Dictionary containing processing statistics and results
-        """
-        results = {
-            "processed_files": [],
-            "failed_files": [],
-            "stats": {"total": 0, "success": 0, "failed": 0},
-        }
-
-        # Get all image files
-        image_files = [
-            f for f in os.listdir(self.input_dir) if f.lower().endswith((".png", ".jpg", ".jpeg"))
-        ]
-        results["stats"]["total"] = len(image_files)
-
-        for image_file in image_files:
-            image_path = os.path.join(self.input_dir, image_file)
-            output_path = os.path.join(self.output_dir, os.path.splitext(image_file)[0] + ".txt")
-
-            logger.info(f"Processing {image_file}")
-
-            # Extract text from image
-            text = self.process_image_to_text(image_path)
-            if text is None:
-                results["failed_files"].append(
-                    {"filename": image_file, "error": "OCR extraction failed"}
+    for line in text.splitlines():
+        section_match = re.match(SECTION_PATTERN, line.strip())
+        if section_match:
+            if current_section:
+                sections.append(
+                    {
+                        "section": current_section,
+                        "content": "\n".join(current_content).strip(),
+                    }
                 )
-                results["stats"]["failed"] += 1
+            current_section = line.strip()
+            current_content = []
+        else:
+            current_content.append(line)
+
+    if current_section:
+        sections.append({"section": current_section, "content": "\n".join(current_content).strip()})
+
+    return sections
+
+
+def extract_metadata(text: str) -> Dict[str, Optional[str]]:
+    """Extract metadata from text content.
+
+    Args:
+        text: Raw text content to analyze.
+
+    Returns:
+        Dictionary containing metadata like chapter, title, etc.
+    """
+    metadata = {"chapter": None, "title": None, "chapter_title": None}
+
+    # Extract chapter number
+    chapter_match = re.search(r"CHAPTER\s+(\d+)", text)
+    if chapter_match:
+        metadata["chapter"] = chapter_match.group(1)
+
+    # Extract title (e.g., "New York City Plumbing Code")
+    title_match = re.search(r'"([^"]*City Plumbing Code[^"]*)"', text)
+    if title_match:
+        metadata["title"] = title_match.group(1).rstrip('."')
+
+    # Extract chapter title (e.g., "ADMINISTRATION")
+    chapter_title_match = re.search(r"CHAPTER\s+\d+\s*\n\s*([A-Z][A-Z\s]+)(?:\n|$)", text)
+    if chapter_title_match:
+        metadata["chapter_title"] = chapter_title_match.group(1).strip()
+
+    return metadata
+
+
+def process_file(file_path: str) -> Dict[str, any]:
+    """Process a single text file and extract structured data.
+
+    Args:
+        file_path: Path to the text file to process.
+
+    Returns:
+        Dictionary containing file data, including path and sections.
+
+    Raises:
+        FileNotFoundError: If the input file doesn't exist.
+        UnicodeDecodeError: If the file cannot be decoded as UTF-8.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+    except UnicodeDecodeError as e:
+        logger.error(f"Failed to decode file {file_path}: {str(e)}")
+        raise
+
+    metadata = extract_metadata(content)
+    sections = extract_sections(content)
+
+    data = {
+        "file_path": file_path,
+        "metadata": metadata,
+        "raw_text": content,
+        "sections": sections,
+    }
+
+    return data
+
+
+def process_directory(directory_path: str) -> List[Dict[str, any]]:
+    """Process all text files in a directory.
+
+    Args:
+        directory_path: Path to directory containing text files.
+
+    Returns:
+        List of dictionaries containing file data.
+
+    Raises:
+        NotADirectoryError: If directory_path is not a directory.
+    """
+    if not os.path.isdir(directory_path):
+        raise NotADirectoryError(f"Not a directory: {directory_path}")
+
+    processed_data = []
+    for filename in os.listdir(directory_path):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(directory_path, filename)
+            try:
+                data = process_file(file_path)
+                processed_data.append(data)
+                logger.info(f"Successfully processed file: {filename}")
+            except Exception as e:
+                logger.error(f"Failed to process file {filename}: {str(e)}")
                 continue
 
-            # Save text to file
-            if self.save_text_to_file(text, output_path):
-                results["processed_files"].append(
-                    {"image_file": image_file, "text_file": os.path.basename(output_path)}
-                )
-                results["stats"]["success"] += 1
-            else:
-                results["failed_files"].append(
-                    {"filename": image_file, "error": "Failed to save text file"}
-                )
-                results["stats"]["failed"] += 1
-
-        return results
-
-
-def main():
-    """Main function to run the text processor."""
-    # Define directories
-    input_dir = (
-        "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code/optimized/OCR"
-    )
-    output_dir = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code/text"
-
-    # Initialize and run the processor
-    processor = TextProcessor(input_dir, output_dir)
-    results = processor.process_all_images()
-
-    # Print results
-    print("\nProcessing Results:")
-    print(f"Total files processed: {results['stats']['total']}")
-    print(f"Successfully processed: {results['stats']['success']}")
-    print(f"Failed: {results['stats']['failed']}")
-
-    print("\nProcessed Files:")
-    for file in results["processed_files"]:
-        print(f"\nImage: {file['image_file']}")
-        print(f"Text: {file['text_file']}")
-
-    if results["failed_files"]:
-        print("\nFailed Files:")
-        for file in results["failed_files"]:
-            print(f"\nFilename: {file['filename']}")
-            print(f"Error: {file['error']}")
+    return processed_data
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        # Set up paths
+        base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
+        input_dir = os.path.join(base_path, "text")
+
+        # Process all files in directory
+        data = process_directory(input_dir)
+        logger.info(f"Successfully processed {len(data)} files")
+
+    except Exception as e:
+        logger.error(f"Processing failed: {str(e)}")
+        raise
