@@ -5,12 +5,104 @@ import os
 import re
 from typing import Dict, List, Optional
 
+import pytesseract
+from PIL import Image
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Constants
 SECTION_PATTERN = r"(SECTION PC \d+|\d+(\.\d+)*|\d+\.?\s+[A-Za-z])"
+
+
+class TextProcessor:
+    """Class for processing images and extracting text."""
+
+    def __init__(self, input_dir: str, output_dir: str):
+        """Initialize TextProcessor.
+
+        Args:
+            input_dir: Directory containing input images
+            output_dir: Directory to save output text files
+        """
+        self.input_dir = input_dir
+        self.output_dir = output_dir
+        os.makedirs(output_dir, exist_ok=True)
+
+    def process_image(self, image_path: str) -> Optional[str]:
+        """Process a single image and extract text.
+
+        Args:
+            image_path: Path to the image file
+
+        Returns:
+            Extracted text if successful, None otherwise
+        """
+        try:
+            # Open and process image
+            with Image.open(image_path) as img:
+                # Convert to RGB if necessary
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+
+                # Extract text using OCR
+                text = pytesseract.image_to_string(img)
+                return text.strip() if text else None
+
+        except Exception as e:
+            logger.error(f"Error processing image {image_path}: {str(e)}")
+            return None
+
+    def process_all_images(self) -> Dict[str, any]:
+        """Process all images in the input directory.
+
+        Returns:
+            Dictionary containing processing results
+        """
+        results = {
+            "processed_files": [],
+            "failed_files": [],
+            "stats": {"total": 0, "success": 0, "failed": 0},
+        }
+
+        # Process each image in directory
+        for filename in os.listdir(self.input_dir):
+            if not filename.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp")):
+                continue
+
+            results["stats"]["total"] += 1
+            image_path = os.path.join(self.input_dir, filename)
+
+            # Extract text from image
+            text = self.process_image(image_path)
+
+            if text:
+                # Create output text file
+                text_filename = os.path.splitext(filename)[0] + ".txt"
+                text_path = os.path.join(self.output_dir, text_filename)
+
+                try:
+                    # Save extracted text
+                    with open(text_path, "w", encoding="utf-8") as f:
+                        f.write(text)
+
+                    results["processed_files"].append(
+                        {"image_file": filename, "text_file": text_filename}
+                    )
+                    results["stats"]["success"] += 1
+                    logger.info(f"Successfully processed {filename}")
+
+                except Exception as e:
+                    logger.error(f"Error saving text file for {filename}: {str(e)}")
+                    results["failed_files"].append({"file": filename, "error": str(e)})
+                    results["stats"]["failed"] += 1
+            else:
+                results["failed_files"].append({"file": filename, "error": "No text extracted"})
+                results["stats"]["failed"] += 1
+                logger.warning(f"No text extracted from {filename}")
+
+        return results
 
 
 def extract_sections(text: str) -> List[Dict[str, str]]:
