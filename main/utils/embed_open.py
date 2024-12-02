@@ -30,11 +30,11 @@ class DocumentEmbedder:
         if api_key:
             self.api_key = api_key
         else:
-            self.api_key = os.getenv("OPEN_API_KEY")
+            self.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_API_KEY")
             if not self.api_key:
-                raise ValueError("No API key provided and OPEN_API_KEY not found in environment")
+                raise ValueError("No API key provided and OPENAI_API_KEY not found in environment")
 
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=self.api_key)
         self.model = "text-embedding-ada-002"
         self.embedding_dim = 1536  # Dimension of ada-002 embeddings
         self.chunk_size = 4097  # Maximum chunk size for text embedding

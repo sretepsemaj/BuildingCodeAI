@@ -4,115 +4,76 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def extract_chapter_info(raw_text: str) -> tuple[Optional[int], Optional[str]]:
-    """Extract chapter number and title from raw text.
+def extract_chapter_info(filename: str, raw_text: str) -> tuple[str, str]:
+    """Extract chapter number from filename and title from raw text."""
+    # Look for chapter number in filename
+    filename_pattern = r"NYCP(\d+)CH"
+    match = re.search(filename_pattern, filename)
+    if not match:
+        return None, None
 
-    Args:
-        raw_text: Raw text content to process
+    chapter_num = match.group(1)
 
-    Returns:
-        Tuple of (chapter_number, chapter_title) or (None, None) if not found
-    """
-    # Look for chapter number and title in the raw text
-    # Pattern matches "CHAPTER X" followed by an all-caps title on the next line
-    chapter_match = re.search(r"CHAPTER\s+(\d+)\s*\n([A-Z][A-Z\s]+?)(?:\s*\n|$)", raw_text)
-    if chapter_match:
-        chapter_num = int(chapter_match.group(1))
-        chapter_title = chapter_match.group(2).strip()
-        return chapter_num, chapter_title
-    return None, None
+    # Get chapter title from first non-empty line
+    text_lines = raw_text.split("\n")
+    for line in text_lines:
+        line = line.strip()
+        if line and not line.startswith("$") and line.isupper():
+            return chapter_num, line
+
+    return chapter_num, None
 
 
-def extract_metadata(data: List[Dict[str, Any]], chapter_num: int) -> Optional[Dict[str, Any]]:
-    """Find chapter and extract its metadata.
+def process_section(section_text: str, content: str) -> Dict[str, str]:
+    """Process a section into id and text."""
+    # Extract section ID (e.g., "312.5" from "312.5 Water supply system test")
+    id_pattern = r"^(\d+\.\d+(?:\.\d+)?)"
+    match = re.search(id_pattern, section_text)
+    if match:
+        section_id = match.group(1)
+        # Get the title (everything after the ID)
+        title = section_text[len(match.group(0)) :].strip()
+        if title.startswith("."):
+            title = title[1:].strip()
 
-    Args:
-        data: List of document dictionaries
-        chapter_num: Chapter number to process
+        # Combine section text and content, removing any section headers
+        full_text = section_text
+        if content:
+            full_text += "\n" + content
 
-    Returns:
-        Dict containing metadata from the chapter, or None if not found
-    """
-    chapter_pattern = f"NYCP{chapter_num}ch_"
+        # Remove any "SECTION PC XXX" headers from the text
+        full_text = re.sub(r"SECTION PC \d+\n[A-Z\s]+\n+", "", full_text)
 
-    # First find the first page (ending with _1pg.txt)
-    first_page = None
-    for doc in data:
-        if f"{chapter_pattern}1pg.txt" in doc["file_path"]:
-            first_page = doc
-            break
-
-    if not first_page:
-        logger.warning(f"First page not found for Chapter {chapter_num}")
+        return {"i": section_id, "t": full_text.strip()}  # id  # text
+    else:
+        # Handle special cases like numbered lists
         return None
 
-    # Extract chapter number and title from raw text of first page
-    chapter_num, chapter_title = extract_chapter_info(first_page["raw_text"])
-    if not chapter_num or not chapter_title:
-        logger.warning(f"Could not extract chapter info from first page of Chapter {chapter_num}")
-        return None
 
-    # Extract title from section X01.1 where X is the chapter number
-    title = None
-    for section in first_page.get("sections", []):
-        # Look for title in section X01.1
-        if f"{chapter_num}01.1" in section["section"]:
-            # Extract the title from the quoted text
-            title_match = re.search(r'"([^"]*)"', section["content"])
-            if title_match:
-                title = title_match.group(1).strip()
-                break
-
-    # Create metadata
-    metadata = {
-        "chapter": chapter_num,
-        "title": "New York City Plumbing Code",  # Simplified title without chapter number
-        "chapter_title": chapter_title,
-    }
-    return metadata
-
-
-def update_metadata(data: List[Dict[str, Any]], chapter_num: int) -> List[Dict[str, Any]]:
-    """Update metadata for all documents in a chapter.
-
-    Args:
-        data: List of document dictionaries
-        chapter_num: Chapter number to process
-
-    Returns:
-        Updated list of document dictionaries
-    """
-    # Extract metadata from the chapter
-    metadata = extract_metadata(data, chapter_num)
-    if not metadata:
-        logger.warning(f"No metadata found for Chapter {chapter_num}")
-        return data
-
-    # Update all documents in this chapter
-    chapter_pattern = f"NYCP{chapter_num}ch_"
-    updated_data = []
-    for doc in data:
-        if chapter_pattern in doc["file_path"]:
-            doc["metadata"] = metadata
-        updated_data.append(doc)
-
-    return updated_data
+def get_ocr_path(file_path: str, base_path: str) -> str:
+    """Generate corresponding OCR image path from text file path."""
+    # Extract chapter and page info from file path
+    path_pattern = r"NYCP(\d+)ch_(\d+)pg\.txt$"
+    match = re.search(path_pattern, file_path)
+    if match:
+        chapter_num = match.group(1)
+        page_num = match.group(2)
+        ocr_path = os.path.join(
+            base_path, "optimized", "OCR", f"NYCP{chapter_num}ch_{page_num}pg.jpg"
+        )
+        return ocr_path
+    return None
 
 
 def process_json_data(input_file: str, output_file: str) -> None:
-    """Process JSON data to update metadata for all chapters.
-
-    Args:
-        input_file: Path to input JSON file
-        output_file: Path to output JSON file
-    """
+    """Process JSON data to create optimized format."""
     try:
         # Load input data
         with open(input_file, "r", encoding="utf-8") as f:
@@ -122,23 +83,76 @@ def process_json_data(input_file: str, output_file: str) -> None:
             logger.warning("No data found in input file")
             return
 
-        # Find all unique chapter numbers
-        chapter_nums = set()
-        for doc in data:
-            match = re.search(r"NYCP(\d+)ch_", doc["file_path"])
-            if match:
-                chapter_nums.add(int(match.group(1)))
+        # Get chapter info from first document's raw text
+        first_doc = data[0]
+        chapter_num, chapter_title = extract_chapter_info(input_file, first_doc["raw_text"])
 
-        # Process each chapter
-        for chapter_num in sorted(chapter_nums):
-            data = update_metadata(data, chapter_num)
+        if not chapter_num:
+            logger.error(f"Could not extract chapter info from {input_file}")
+            return
+
+        if not chapter_title:
+            # Use first line of raw text as chapter title
+            chapter_title = first_doc["raw_text"].split("\n")[0].strip()
+
+        # Create new optimized structure
+        optimized_data = {
+            "m": {  # metadata
+                "c": chapter_num,  # chapter
+                "t": "NYCPC",  # title
+                "ct": chapter_title,  # chapter title
+            },
+            "f": [],  # files
+            "r": [],  # raw text
+            "s": [],  # sections
+        }
+
+        # Get base path for OCR images
+        base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
+
+        # Process all documents
+        for idx, doc in enumerate(data):
+            # Add file path and OCR path
+            file_path = doc.get("file_path")
+            if file_path:
+                file_entry = {
+                    "i": idx,  # index
+                    "p": file_path,  # text path
+                }
+
+                # Add OCR path if available
+                ocr_path = get_ocr_path(file_path, base_path)
+                if ocr_path:
+                    file_entry["o"] = ocr_path  # OCR image path
+
+                optimized_data["f"].append(file_entry)
+
+            # Add raw text
+            raw_text = doc.get("raw_text")
+            if raw_text:
+                optimized_data["r"].append({"i": idx, "t": raw_text})  # index  # text
+
+            # Process sections
+            for section in doc.get("sections", []):
+                processed_section = process_section(section["section"], section["content"])
+                if processed_section:  # Only add valid sections
+                    processed_section["f"] = idx  # Add file index reference
+                    optimized_data["s"].append(processed_section)
+
+        # Sort sections by ID numerically
+        def section_key(section):
+            # Split the ID into parts and convert to float for proper numerical sorting
+            parts = section["i"].split(".")
+            return tuple(float(p) for p in parts)
+
+        optimized_data["s"].sort(key=section_key)
 
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
         # Save processed data
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(optimized_data, f, indent=2, ensure_ascii=False)
 
         logger.info(f"Successfully processed {input_file} and saved to {output_file}")
 
@@ -148,28 +162,28 @@ def process_json_data(input_file: str, output_file: str) -> None:
 
 
 def process_directory(input_dir: str, output_dir: str) -> None:
-    """Process all JSON files in a directory and save to output directory.
-
-    Args:
-        input_dir: Path to directory containing input JSON files
-        output_dir: Path to directory where processed JSON files will be saved
-    """
+    """Process all JSON files in a directory."""
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
     # Process each JSON file
-    for filename in os.listdir(input_dir):
-        if filename.endswith(".json"):
-            input_file = os.path.join(input_dir, filename)
-            output_file = os.path.join(output_dir, filename)
-            process_json_data(input_file, output_file)
+    for root, _, files in os.walk(input_dir):
+        for filename in files:
+            if filename.endswith(".json"):
+                input_file = os.path.join(root, filename)
+                # Keep the same relative path structure in output directory
+                rel_path = os.path.relpath(root, input_dir)
+                output_subdir = os.path.join(output_dir, rel_path)
+                os.makedirs(output_subdir, exist_ok=True)
+                output_file = os.path.join(output_subdir, filename)
+                process_json_data(input_file, output_file)
 
 
 if __name__ == "__main__":
     # Define input and output paths
     base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
     input_dir = os.path.join(base_path, "json")
-    output_dir = os.path.join(base_path, "optimized", "json")
+    output_dir = os.path.join(base_path, "json_processed")
 
     # Process all files
     process_directory(input_dir, output_dir)
