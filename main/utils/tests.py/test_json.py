@@ -1,98 +1,92 @@
+"""Tests for json processor."""
+
 import json
 import os
-import shutil
-import tempfile
 import unittest
+from unittest.mock import mock_open, patch
 
-from main.utils.json_processor import process_directory, save_json
+from ..json_processor_wash import (
+    extract_chapter_info,
+    extract_metadata,
+    process_directory,
+    process_json_data,
+    update_metadata,
+)
 
 
-class TestTextJson(unittest.TestCase):
-    """Test cases for the text_json.py script."""
+class TestJsonProcessor(unittest.TestCase):
+    """Test cases for json processor functions."""
 
     def setUp(self):
-        """Set up test environment before each test."""
-        # Create a temporary directory for testing
-        self.test_dir = tempfile.mkdtemp()
-        self.input_dir = os.path.join(self.test_dir, "text")
-        self.output_dir = os.path.join(self.test_dir, "json")
-        os.makedirs(self.input_dir)
-        os.makedirs(self.output_dir)
+        """Set up test data."""
+        self.test_data = [
+            {
+                "file_path": "/path/to/NYCP1ch_1pg.txt",
+                "base64_file_path": None,
+                "metadata": {"chapter": None, "title": None, "chapter_title": None},
+                "raw_text": (
+                    "CHAPTER 1\nADMINISTRATION\n\nSECTION PC 101\n"
+                    '101.1 Title. This code shall be known as the "NYC Plumbing Code"'
+                ),
+                "sections": [
+                    {
+                        "section": "101.1 Title",
+                        "content": 'This code shall be known as the "NYC Plumbing Code"',
+                    }
+                ],
+            }
+        ]
 
-        # Create a sample text file
-        self.sample_text = """
-        SECTION PC 101
-        GENERAL
+    def test_extract_chapter_info(self):
+        """Test extracting chapter info from raw text."""
+        raw_text = (
+            "CHAPTER 1\nADMINISTRATION\n\nSECTION PC 101\n"
+            '101.1 Title. This code shall be known as the "NYC Plumbing Code"'
+        )
+        chapter_num, chapter_title = extract_chapter_info(raw_text)
+        self.assertEqual(chapter_num, 1)
+        self.assertEqual(chapter_title, "ADMINISTRATION")
 
-        101.1 Title. This code shall be known and may be cited as the “New York City Plumbing Code,” “NYCPC” or “PC.”
-        All section numbers in this code shall be deemed to be preceded by the designation “PC.”
+    def test_extract_metadata(self):
+        """Test metadata extraction from chapter data."""
+        metadata = extract_metadata(self.test_data, 1)
+        expected = {
+            "chapter": 1,
+            "title": "New York City Plumbing Code",
+            "chapter_title": "ADMINISTRATION",
+        }
+        self.assertEqual(metadata, expected)
 
-        SECTION PC 102
-        APPLICABILITY
+    def test_update_metadata(self):
+        """Test updating metadata for all documents in a chapter."""
+        updated_data = update_metadata(self.test_data, 1)
+        expected_metadata = {
+            "chapter": 1,
+            "title": "New York City Plumbing Code",
+            "chapter_title": "ADMINISTRATION",
+        }
+        self.assertEqual(updated_data[0]["metadata"], expected_metadata)
 
-        102.1 General. Where there is a conflict between a general requirement and a specific requirement, the specific
-        requirement shall govern.
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("json.load")
+    @patch("json.dump")
+    @patch("os.makedirs")
+    def test_process_json_data(self, mock_makedirs, mock_dump, mock_load, mock_file):
+        """Test processing JSON data end-to-end."""
+        mock_load.return_value = self.test_data
+        process_json_data("input.json", "output.json")
+        mock_makedirs.assert_called_once()
+        mock_dump.assert_called_once()
 
-        107.6.2.2 Connection not feasible or not available. Where a public combined or storm sewer is not available,
-        or where connection thereto is not feasible, applicants shall submit:
-
-        1. Department of Environmental Protection or applicant certification of unavailability or non-feasi-
-        bility. (i) Certification issued by the Department of Environmental Protection that a public storm or com-
-        bined sewer is not available or that connection thereto is not feasible. Such certification shall be on forms
-        specified by such department (Department of Environmental Protection “house/site connection proposal
-        application” or other form as specified in the rules of such department); or (ii) Certification submitted by
-        the applicant to the Department of Environmental Protection that a public storm or combined sewer is not
-        available or that connection thereto is not feasible, in such cases where the availability and feasibility of
-        connection to a public storm or combined sewer are allowed to be certified by the applicant pursuant to
-        rules of such department. Certification shall be on forms specified by such department (Department of
-        Environmental Protection “house/site connection proposal application” or other form as specified in the
-        rules of such department); and
-
-        nv
-
-        . On-site disposal. A proposal for the design and construction of a system for the on-site disposal of storm-
-        water conforming to the provisions of this code and other applicable laws and rules including but not
-        limited to minimum required distances from lot lines or structures and subsoil conditions. Construction
-        documents for such system shall be subject to the approval of the department.
-
-        107.6.3 Post-construction stormwater management facilities. A post-construction stormwater management fa-
-
-        """
-        self.sample_file_path = os.path.join(self.input_dir, "sample.txt")
-        with open(self.sample_file_path, "w", encoding="utf-8") as f:
-            f.write(self.sample_text)
-
-    def tearDown(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.test_dir)
-
-    def test_process_directory(self):
-        """Test processing a directory of text files."""
-        data = process_directory(self.input_dir)
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["file_path"], self.sample_file_path)
-
-        # We now expect 7 sections: SECTION PC 101, 101.1, SECTION PC 102, 102.1, 107.6.2.2, numbered list item, and 107.6.3
-        self.assertEqual(len(data[0]["sections"]), 7)
-
-        # Test some specific sections
-        sections = data[0]["sections"]
-        self.assertEqual(sections[0]["section"], "SECTION PC 101")
-        self.assertTrue(any(s["section"].startswith("107.6.2.2") for s in sections))
-        self.assertTrue(any(s["section"].startswith("1. Department") for s in sections))
-
-    def test_save_json(self):
-        """Test saving extracted data to a JSON file."""
-        data = process_directory(self.input_dir)
-        output_json_path = os.path.join(self.output_dir, "text_data.json")
-        save_json(data, output_json_path)
-
-        # Verify JSON file creation
-        self.assertTrue(os.path.exists(output_json_path))
-        with open(output_json_path, "r", encoding="utf-8") as f:
-            json_data = json.load(f)
-        self.assertEqual(len(json_data), 1)
-        self.assertEqual(json_data[0]["file_path"], self.sample_file_path)
+    @patch("os.makedirs")
+    @patch("os.listdir")
+    @patch("json_processor_wash.process_json_data")
+    def test_process_directory(self, mock_process, mock_listdir, mock_makedirs):
+        """Test processing all JSON files in a directory."""
+        mock_listdir.return_value = ["test1.json", "test2.txt", "test3.json"]
+        process_directory("input_dir", "output_dir")
+        self.assertEqual(mock_process.call_count, 2)
+        mock_makedirs.assert_called_once_with("output_dir", exist_ok=True)
 
 
 if __name__ == "__main__":
