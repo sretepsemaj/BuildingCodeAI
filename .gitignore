@@ -63,7 +63,7 @@ media/
 
 # Test files to ignore for pre-commit hooks
 main/utils/tests.py/**
-main/utils/test_*.py
+main/utils/test.py/test_*.py
 **/test_*.py
 **/tests.py
 .pytest_cache/

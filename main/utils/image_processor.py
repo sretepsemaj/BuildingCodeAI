@@ -137,22 +137,30 @@ class ImageProcessor:
         self.base64_processor = Base64ImageProcessor(input_dir, base64_output_dir)
 
     def get_new_filename(self, original_filename: str) -> str:
-        """Convert original filename to the new NYCP format."""
+        """Convert original filename to the new NYCP format.
+
+        Examples:
+            4Screenshot1 -> NYCP4ch_1pg
+            5Screenshot2 -> NYCP5ch_2pg
+
+        """
         # Remove file extension
         name_without_ext = os.path.splitext(original_filename)[0]
 
-        # Extract chapter number and page info
-        # Expected format: chapter_X_Xpage
+        # Extract numbers using regex
+        matches = re.findall(r"(\d+)Screenshot(\d+)", name_without_ext)
+        if matches:
+            chapter_num, page_num = matches[0]
+            return f"NYCP{chapter_num}ch_{page_num}pg"
+
+        # If old format (chapter_X_Xpage)
         parts = name_without_ext.split("_")
         if len(parts) >= 3 and parts[0].lower() == "chapter":
             chapter_num = parts[1]
-            # Extract just the number from 'Xpage'
             page_info = parts[2].lower().replace("page", "")
-            # Create new filename in format NYCPXch_Xpg
-            new_filename = f"NYCP{chapter_num}ch_{page_info}pg"
-            return new_filename
+            return f"NYCP{chapter_num}ch_{page_info}pg"
 
-        # If filename doesn't match expected format, return original name without extension
+        # If filename doesn't match any expected format, return original name without extension
         return name_without_ext
 
     def process_images(self) -> Dict[str, Any]:
