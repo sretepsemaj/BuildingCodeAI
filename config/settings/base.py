@@ -201,8 +201,26 @@ STATICFILES_DIRS = [
 ]
 
 # Media files (User uploaded files)
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Plumbing code media subdirectories
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIRS = {
+    "ocr": PLUMBING_CODE_DIR / "OCR",
+    "base64": PLUMBING_CODE_DIR / "base64",
+    "embeddings": PLUMBING_CODE_DIR / "embeddings",
+    "json": PLUMBING_CODE_DIR / "json",
+    "json_processed": PLUMBING_CODE_DIR / "json_processed",
+    "original": PLUMBING_CODE_DIR / "original",
+    "tables": PLUMBING_CODE_DIR / "tables",
+    "text": PLUMBING_CODE_DIR / "text",
+    "uploads": PLUMBING_CODE_DIR / "uploads",
+}
+
+# Create directories if they don't exist
+for directory in [MEDIA_ROOT, PLUMBING_CODE_DIR, *PLUMBING_CODE_DIRS.values()]:
+    directory.mkdir(parents=True, exist_ok=True)
 
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = False  # Don't allow all origins in production

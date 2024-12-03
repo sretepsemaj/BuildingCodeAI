@@ -25,7 +25,6 @@ wheels/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-media/
 
 # Virtual Environment
 .env
@@ -58,8 +57,31 @@ cover/
 
 # Project specific
 staticfiles/
-media/
 *.bak
+
+# Media files but keep directory structure
+media/*
+!media/.gitkeep
+media/plumbing_code/*
+!media/plumbing_code/.gitkeep
+media/plumbing_code/OCR/*
+!media/plumbing_code/OCR/.gitkeep
+media/plumbing_code/base64/*
+!media/plumbing_code/base64/.gitkeep
+media/plumbing_code/embeddings/*
+!media/plumbing_code/embeddings/.gitkeep
+media/plumbing_code/json/*
+!media/plumbing_code/json/.gitkeep
+media/plumbing_code/json_processed/*
+!media/plumbing_code/json_processed/.gitkeep
+media/plumbing_code/original/*
+!media/plumbing_code/original/.gitkeep
+media/plumbing_code/tables/*
+!media/plumbing_code/tables/.gitkeep
+media/plumbing_code/text/*
+!media/plumbing_code/text/.gitkeep
+media/plumbing_code/uploads/*
+!media/plumbing_code/uploads/.gitkeep
 
 # Test files to ignore for pre-commit hooks
 main/utils/tests.py/**

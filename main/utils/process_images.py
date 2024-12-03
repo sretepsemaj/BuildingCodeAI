@@ -1,18 +1,17 @@
 import os
 
+from django.conf import settings
+
 from main.utils.image_processor import ImageProcessor
 
 
 def main():
     """Process images from original directory and save optimized versions."""
-    # Define the directories
-    base_dir = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
-    input_dir = f"{base_dir}/original"
-    ocr_dir = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media"
-    base64_dir = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media"
-
-    ocr_output_dir = f"{ocr_dir}/plumbing_code/optimized/OCR"
-    base64_output_dir = f"{base64_dir}/plumbing_code/optimized/base64"
+    # Define the directories using Django settings
+    plumbing_dir = os.path.join(settings.MEDIA_ROOT, "plumbing_code")
+    input_dir = os.path.join(plumbing_dir, "original")
+    ocr_output_dir = os.path.join(plumbing_dir, "optimized", "OCR")
+    base64_output_dir = os.path.join(plumbing_dir, "optimized", "base64")
 
     # Create output directories if they don't exist
     os.makedirs(ocr_output_dir, exist_ok=True)

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load main_extras %}
 
 {% block content %}
 <div class="container mt-5">
@@ -39,6 +40,32 @@
                                     <div class="content-box p-3 bg-light rounded">
                                         {{ result.metadata.text }}
                                     </div>
+                                    {% if result.metadata.ocr_paths %}
+                                    <div class="ocr-images mt-3">
+                                        <h6 class="text-muted">Related Images:</h6>
+                                        <div class="image-scroll-container">
+                                            {% for ocr_path in result.metadata.ocr_paths %}
+                                            <div class="image-item">
+                                                <img src="{% get_media_url ocr_path %}" alt="OCR Image {{ forloop.counter }}" class="img-thumbnail ocr-thumbnail" data-bs-toggle="modal" data-bs-target="#imageModal{{ forloop.parentloop.counter }}{{ forloop.counter }}">
+                                            </div>
+                                            <!-- Image Modal -->
+                                            <div class="modal fade" id="imageModal{{ forloop.parentloop.counter }}{{ forloop.counter }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-lg">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">Section {{ result.metadata.id }} - Image {{ forloop.counter }}</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body text-center">
+                                                            <img src="{% get_media_url ocr_path %}" alt="OCR Image {{ forloop.counter }}" class="img-fluid">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -66,6 +93,24 @@
 }
 .metadata .badge {
     font-size: 0.9em;
+}
+.image-scroll-container {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 10px 0;
+}
+.image-item {
+    flex: 0 0 auto;
+}
+.ocr-thumbnail {
+    max-width: 150px;
+    height: auto;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.ocr-thumbnail:hover {
+    transform: scale(1.05);
 }
 </style>
 {% endblock %}
