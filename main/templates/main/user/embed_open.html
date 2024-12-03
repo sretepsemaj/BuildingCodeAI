@@ -27,12 +27,19 @@
                         {% for result in results %}
                         <div class="result-item card mb-3">
                             <div class="card-body">
-                                <h5 class="card-title">{{ result.metadata.filename }}</h5>
-                                <p class="card-text">
-                                    <strong>Batch:</strong> {{ result.metadata.batch_name }}<br>
-                                    <strong>Status:</strong> {{ result.metadata.status }}<br>
-                                    <strong>Similarity Score:</strong> {{ result.similarity|floatformat:4 }}
-                                </p>
+                                <h5 class="card-title">
+                                    <i class="fas fa-file-alt me-2"></i>
+                                    Section: {{ result.metadata.id }}
+                                </h5>
+                                <div class="metadata mb-2">
+                                    <span class="badge bg-primary">Similarity Score: {{ result.similarity|floatformat:4 }}</span>
+                                </div>
+                                <div class="content mt-3">
+                                    <h6 class="text-muted">Matching Content:</h6>
+                                    <div class="content-box p-3 bg-light rounded">
+                                        {{ result.metadata.text }}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -49,4 +56,16 @@
         </div>
     </div>
 </div>
+
+<style>
+.content-box {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    white-space: pre-wrap;
+}
+.metadata .badge {
+    font-size: 0.9em;
+}
+</style>
 {% endblock %}

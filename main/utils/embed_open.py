@@ -177,19 +177,18 @@ class DocumentEmbedder:
         return data
 
     def compute_similarity(
-        self, query_embedding: List[float], document_embeddings: List[List[float]]
+        self, query_embedding: List[float], document_embeddings: np.ndarray
     ) -> List[float]:
         """Compute cosine similarity between query and documents.
 
         Args:
             query_embedding: Query embedding vector.
-            document_embeddings: Document embedding vectors.
+            document_embeddings: Document embedding vectors as a 2D numpy array.
 
         Returns:
             List of similarity scores.
         """
         query_embedding = np.array(query_embedding)
-        document_embeddings = np.array(document_embeddings)
 
         # Normalize the embeddings
         query_norm = np.linalg.norm(query_embedding)
@@ -219,9 +218,16 @@ class DocumentEmbedder:
         # Create embedding for the query
         query_embedding = self.get_embedding(query)
 
-        # Get document embeddings and metadata
-        document_embeddings = embeddings_data["embeddings"]
-        metadata = embeddings_data["metadata"]
+        # Extract embeddings and metadata from the structured data
+        document_embeddings = []
+        metadata_list = []
+
+        for item in embeddings_data["embeddings"]:
+            document_embeddings.append(np.array(item["embedding"]))
+            metadata_list.append({"id": item["id"], "text": item["text"]})
+
+        # Convert to numpy array
+        document_embeddings = np.stack(document_embeddings)
 
         # Compute similarities
         similarities = self.compute_similarity(query_embedding, document_embeddings)
@@ -229,7 +235,12 @@ class DocumentEmbedder:
         # Sort documents by similarity
         results = []
         for idx, similarity in enumerate(similarities):
-            results.append({"metadata": metadata[idx], "similarity": similarity})
+            results.append(
+                {
+                    "metadata": metadata_list[idx],
+                    "similarity": float(similarity),  # Convert to float for JSON serialization
+                }
+            )
 
         # Sort by similarity score in descending order
         results.sort(key=lambda x: x["similarity"], reverse=True)

@@ -687,12 +687,17 @@ def semantic_search(request: HttpRequest) -> HttpResponse:
                 embedder = DocumentEmbedder()
 
                 # Find the latest embeddings file
-                embeddings_dir = os.path.join(settings.MEDIA_ROOT, "embeddings")
-                embedding_files = glob.glob(os.path.join(embeddings_dir, "embeddings_*.json"))
+                embeddings_dir = os.path.join(settings.MEDIA_ROOT, "plumbing_code", "embeddings")
+                logger.info(f"Looking for embeddings in directory: {embeddings_dir}")
+
+                embedding_files = glob.glob(os.path.join(embeddings_dir, "*embeddings*.json"))
+                logger.info(f"Found embedding files: {embedding_files}")
+
                 if not embedding_files:
-                    raise FileNotFoundError("No embedding files found")
+                    raise FileNotFoundError(f"No embedding files found in {embeddings_dir}")
 
                 latest_embedding_file = max(embedding_files, key=os.path.getctime)
+                logger.info(f"Using embedding file: {latest_embedding_file}")
 
                 # Load embeddings and perform search
                 embeddings_data = embedder.load_embeddings(latest_embedding_file)
