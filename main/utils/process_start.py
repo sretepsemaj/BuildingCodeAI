@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # List of processes to run in order
 PROCESS_ORDER = [
     "process_filename",
-    "process_images",
+    "process_ocr",
     "process_text",
     "process_json",
     "process_json_wash",
