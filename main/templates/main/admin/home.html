@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Home{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    {% if user.is_authenticated and user.is_staff %}
+    <div class="row">
+        <!-- Welcome Section -->
+        <div class="col-lg-12 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">Welcome, {{ user.username }}!</h2>
+                    <p class="card-text">Manage your plumbing code processing here.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="col-lg-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <a href="{% url 'process_upload' %}" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-upload"></i> Upload & Process Images
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <a href="{% url 'batch_chapters' %}" class="btn btn-success btn-lg w-100">
+                                <i class="fas fa-book"></i> View Processed Chapters
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-danger">
+        <h4 class="alert-heading">Access Denied</h4>
+        <p>You need administrator privileges to access this page.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

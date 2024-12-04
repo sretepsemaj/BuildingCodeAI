@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Processed Chapters</h2>
+
+    {% if chapters %}
+        {% for chapter in chapters %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{{ chapter.filename }}</h5>
+            </div>
+            <div class="card-body">
+                <pre class="json-viewer">{{ chapter.data|pprint }}</pre>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            No processed chapters found. Upload and process some images first.
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.json-viewer {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+</style>
+{% endblock %}

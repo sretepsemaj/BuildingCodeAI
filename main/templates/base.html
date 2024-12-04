@@ -32,22 +32,14 @@
                 <ul class="navbar-nav me-auto">
                     {% if user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'doc_batches' %}">Document Batches</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'semantic_search' %}">Semantic Search</a>
                     </li>
                     {% if user.is_staff %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
-                            Admin Tools
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{% url 'image_open' %}">Image Analysis (OpenAI)</a></li>
-                            <li><a class="dropdown-item" href="{% url 'image_llama' %}">Image Analysis (Llama)</a></li>
-                            <li><a class="dropdown-item" href="{% url 'image_groq' %}">Image Analysis (Groq)</a></li>
-                            <li><a class="dropdown-item" href="{% url 'process_doc_classic' %}">Document Processing</a></li>
-                        </ul>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'process_upload' %}">Upload Images</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'batch_chapters' %}">View Chapters</a>
                     </li>
                     {% endif %}
                     {% endif %}
