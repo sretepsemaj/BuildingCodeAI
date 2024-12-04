@@ -4,11 +4,23 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, List
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Define paths
+BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
+MEDIA_ROOT = BASE_DIR / "media"
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIRS = {
+    "json": PLUMBING_CODE_DIR / "json",
+    "json_processed": PLUMBING_CODE_DIR / "json_processed",
+    "tables": PLUMBING_CODE_DIR / "tables",
+    "analytics": PLUMBING_CODE_DIR / "analytics",
+}
 
 
 def extract_chapter_info(filename: str, raw_text: str) -> tuple[str, str]:
@@ -79,21 +91,18 @@ def process_json_data(input_file: str, output_file: str) -> None:
         with open(input_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        if not data:
+        if not data or not data.get("f"):
             logger.warning("No data found in input file")
             return
 
-        # Get chapter info from first document's raw text
-        first_doc = data[0]
-        chapter_num, chapter_title = extract_chapter_info(input_file, first_doc["raw_text"])
+        # Get metadata from input
+        metadata = data.get("m", {})
+        chapter_num = metadata.get("c")
+        chapter_title = metadata.get("ct", "")
 
         if not chapter_num:
             logger.error(f"Could not extract chapter info from {input_file}")
             return
-
-        if not chapter_title:
-            # Use first line of raw text as chapter title
-            chapter_title = first_doc["raw_text"].split("\n")[0].strip()
 
         # Create new optimized structure
         optimized_data = {
@@ -105,43 +114,71 @@ def process_json_data(input_file: str, output_file: str) -> None:
             "f": [],  # files
             "r": [],  # raw text
             "s": [],  # sections
+            "tb": [],  # tables
         }
 
-        # Get base path for OCR images
-        base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
-
-        # Process all documents
-        for idx, doc in enumerate(data):
-            # Add file path and OCR path
-            file_path = doc.get("file_path")
-            if file_path:
-                file_entry = {
-                    "i": idx,  # index
-                    "p": file_path,  # text path
+        # Process all files
+        files = data.get("f", [])
+        for file_entry in files:
+            # Add file information
+            optimized_data["f"].append(
+                {
+                    "i": file_entry["i"],
+                    "p": file_entry["p"],
+                    "o": file_entry["o"],
+                    "pg": file_entry.get("pg", 0),
                 }
-
-                # Add OCR path if available
-                ocr_path = get_ocr_path(file_path, base_path)
-                if ocr_path:
-                    file_entry["o"] = ocr_path  # OCR image path
-
-                optimized_data["f"].append(file_entry)
+            )
 
             # Add raw text
-            raw_text = doc.get("raw_text")
-            if raw_text:
-                optimized_data["r"].append({"i": idx, "t": raw_text})  # index  # text
+            text_content = file_entry.get("t", "")
+            if text_content:
+                optimized_data["r"].append({"i": file_entry["i"], "t": text_content})
 
-            # Process sections
-            for section in doc.get("sections", []):
-                processed_section = process_section(section["section"], section["content"])
-                if processed_section:  # Only add valid sections
-                    processed_section["f"] = idx  # Add file index reference
-                    optimized_data["s"].append(processed_section)
+            # Add table if exists
+            if file_entry.get("tb"):
+                table_entry = {
+                    "i": file_entry["i"],
+                    "t": file_entry["tb"],
+                    "f": file_entry["i"],  # Reference to source file
+                }
+                if file_entry.get("tb_data"):
+                    table_entry["d"] = str(
+                        PLUMBING_CODE_DIRS["tables"] / Path(file_entry["tb_data"]).name
+                    )
+                if file_entry.get("tb_img"):
+                    table_entry["img"] = str(
+                        PLUMBING_CODE_DIRS["analytics"] / Path(file_entry["tb_img"]).name
+                    )
+                optimized_data["tb"].append(table_entry)
+
+            # Process sections from text content
+            sections = []
+            current_section = None
+            for line in text_content.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Check for section header (e.g., "308.5 Interval of support")
+                section_match = re.match(r"^(\d+\.\d+(?:\.\d+)?)\s+(.+)$", line)
+                if section_match:
+                    if current_section:
+                        sections.append(current_section)
+                    section_id = section_match.group(1)
+                    section_title = section_match.group(2)
+                    current_section = {"i": section_id, "t": line, "c": "", "f": file_entry["i"]}
+                elif current_section:
+                    current_section["c"] += line + "\n"
+
+            if current_section:
+                sections.append(current_section)
+
+            # Add processed sections
+            optimized_data["s"].extend(sections)
 
         # Sort sections by ID numerically
         def section_key(section):
-            # Split the ID into parts and convert to float for proper numerical sorting
             parts = section["i"].split(".")
             return tuple(float(p) for p in parts)
 
@@ -163,27 +200,24 @@ def process_json_data(input_file: str, output_file: str) -> None:
 
 def process_directory(input_dir: str, output_dir: str) -> None:
     """Process all JSON files in a directory."""
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
 
-    # Process each JSON file
-    for root, _, files in os.walk(input_dir):
-        for filename in files:
+        for filename in os.listdir(input_dir):
             if filename.endswith(".json"):
-                input_file = os.path.join(root, filename)
-                # Keep the same relative path structure in output directory
-                rel_path = os.path.relpath(root, input_dir)
-                output_subdir = os.path.join(output_dir, rel_path)
-                os.makedirs(output_subdir, exist_ok=True)
-                output_file = os.path.join(output_subdir, filename)
+                input_file = os.path.join(input_dir, filename)
+                output_file = os.path.join(output_dir, filename)
                 process_json_data(input_file, output_file)
+
+    except Exception as e:
+        logger.error(f"Error processing directory {input_dir}: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":
     # Define input and output paths
-    base_path = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/main/media/plumbing_code"
-    input_dir = os.path.join(base_path, "json")
-    output_dir = os.path.join(base_path, "json_processed")
+    input_dir = str(PLUMBING_CODE_DIRS["json"])
+    output_dir = str(PLUMBING_CODE_DIRS["json_processed"])
 
     # Process all files
     process_directory(input_dir, output_dir)
