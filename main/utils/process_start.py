@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 PROCESS_ORDER = [
     "process_filename",
     "process_ocr",
-    "process_text",
     "process_json",
     "process_json_wash",
 ]
