@@ -9,9 +9,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIRS = {
     "ocr": PLUMBING_CODE_DIR / "OCR",
-    "base64": PLUMBING_CODE_DIR / "base64",
+    "optimizer": PLUMBING_CODE_DIR / "optimizer",
     "embeddings": PLUMBING_CODE_DIR / "embeddings",
     "json": PLUMBING_CODE_DIR / "json",
+    "json_final": PLUMBING_CODE_DIR / "json_final",
     "json_processed": PLUMBING_CODE_DIR / "json_processed",
     "original": PLUMBING_CODE_DIR / "original",
     "tables": PLUMBING_CODE_DIR / "tables",

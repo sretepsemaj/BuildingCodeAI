@@ -21,7 +21,7 @@ PLUMBING_CODE_DIRS = {
     "ocr": PLUMBING_CODE_DIR / "OCR",
     "json": PLUMBING_CODE_DIR / "json",
     "tables": PLUMBING_CODE_DIR / "tables",
-    "optimized": PLUMBING_CODE_DIR / "optimized",
+    "original": PLUMBING_CODE_DIR / "original",
 }
 
 
@@ -67,7 +67,7 @@ def process_file(text_path: str) -> Dict:
         file_entry = {
             "i": pg_num,
             "p": str(text_path),
-            "o": str(PLUMBING_CODE_DIRS["optimized"] / f"{filename}.jpg"),
+            "o": str(PLUMBING_CODE_DIRS["original"] / f"{filename}.jpg"),
             "pg": pg_num,
             "t": text_content,
         }

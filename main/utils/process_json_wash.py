@@ -17,13 +17,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIRS = {
     "ocr": PLUMBING_CODE_DIR / "OCR",
-    "embeddings": PLUMBING_CODE_DIR / "embeddings",
     "json": PLUMBING_CODE_DIR / "json",
     "json_final": PLUMBING_CODE_DIR / "json_final",
     "json_processed": PLUMBING_CODE_DIR / "json_processed",
     "tables": PLUMBING_CODE_DIR / "tables",
     "analytics": PLUMBING_CODE_DIR / "analytics",
-    "original": PLUMBING_CODE_DIR / "original",
+    "optimized": PLUMBING_CODE_DIR / "optimized",
     "uploads": PLUMBING_CODE_DIR / "uploads",
 }
 
@@ -75,7 +74,7 @@ def process_file(text_path: str) -> Dict:
         file_entry = {
             "i": pg_num,
             "p": str(text_path),
-            "o": str(PLUMBING_CODE_DIRS["optimized"] / f"{filename}.jpg"),
+            "o": str(PLUMBING_CODE_DIRS["original"] / f"{filename}.jpg"),
             "pg": pg_num,
             "t": text_content,
         }
@@ -110,7 +109,7 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                     continue
 
                 chapter_num = chapter_match.group(1)
-                chapter_key = f"NYCP{chapter_num}CH_"
+                chapter_key = f"NYCP{chapter_num}CH"
 
                 # Initialize chapter data if not exists
                 if chapter_key not in processed_data:
