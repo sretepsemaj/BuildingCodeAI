@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -29,50 +29,53 @@ PLUMBING_CODE_DIRS = {
 }
 
 
-def read_table_data(table_path: str) -> Optional[Dict]:
-    """Read and parse table data from file."""
+def read_table_data(table_file: str) -> Dict:
+    """Read table data from a file.
+
+    Args:
+        table_file: Path to the table data file
+
+    Returns:
+        Dict containing table content and metadata
+    """
     try:
-        if not os.path.exists(table_path):
-            return None
-
-        with open(table_path, "r", encoding="utf-8") as f:
-            table_content = f.read()
-
-        return {
-            "table_content": table_content,
-            "table_path": table_path,
-        }
+        with open(table_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"table_content": content, "path": table_file}
     except Exception as e:
-        logger.error(f"Error reading table data from {table_path}: {str(e)}")
+        logger.error(f"Error reading table file {table_file}: {str(e)}")
         return None
 
 
-def process_file(text_path: str) -> Dict:
-    """Process a single text file and its associated table data."""
+def process_file(text_path: Union[str, Path]) -> Optional[Dict]:
+    """Process a single text file and its associated files.
+
+    Args:
+        text_path: Path to the text file
+
+    Returns:
+        Dict containing processed file data or None if error
+    """
     try:
-        # Read OCR text
-        with open(text_path, "r", encoding="utf-8") as f:
-            text_content = f.read()
+        text_path = Path(text_path)
+        filename = text_path.stem
 
-        # Get filename without extension
-        filename = Path(text_path).stem
-
-        # Extract page number from filename (e.g., NYCP1ch_9pg.txt -> 9)
+        # Extract page number from filename
         try:
             pg_num = int("".join(filter(str.isdigit, filename.split("_")[-1])))
         except (IndexError, ValueError):
             pg_num = 0
             logger.warning(f"Could not extract page number from filename: {filename}")
 
-        # Check for associated table files
-        table_file = PLUMBING_CODE_DIRS["tables"] / f"{filename}.txt"
+        # Check for associated files
+        table_file = PLUMBING_CODE_DIRS["tables"] / f"{filename}_data.csv"
         analytics_file = PLUMBING_CODE_DIRS["analytics"] / f"{filename}.png"
 
-        table_data = None
-        if table_file.exists():
-            table_data = read_table_data(str(table_file))
+        # Read the text content
+        with open(str(text_path), "r", encoding="utf-8") as f:
+            text_content = f.read()
 
-        # Create optimized file entry
+        # Create base file entry
         file_entry = {
             "i": pg_num,
             "p": str(text_path),
@@ -81,17 +84,19 @@ def process_file(text_path: str) -> Dict:
             "t": text_content,
         }
 
-        if table_data:
-            file_entry["tb"] = table_data["table_content"]
-            file_entry["tb_data"] = str(table_file)
+        # Add table data if it exists
+        if table_file.exists():
+            file_entry["tb"] = str(table_file)
+
+        # Add analytics image if it exists
         if analytics_file.exists():
-            file_entry["tb_img"] = str(analytics_file)
+            file_entry["io"] = str(analytics_file)
 
         return file_entry
 
     except Exception as e:
         logger.error(f"Error processing file {text_path}: {str(e)}")
-        raise
+        return None
 
 
 def process_directory(base_dir: str) -> Dict[str, Dict]:
