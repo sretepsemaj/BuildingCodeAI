@@ -20,8 +20,14 @@ PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIRS = {
     "ocr": PLUMBING_CODE_DIR / "OCR",
     "json": PLUMBING_CODE_DIR / "json",
-    "tables": PLUMBING_CODE_DIR / "tables",
+    "json_final": PLUMBING_CODE_DIR / "json_final",
+    "json_processed": PLUMBING_CODE_DIR / "json_processed",
     "original": PLUMBING_CODE_DIR / "original",
+    "optimizer": PLUMBING_CODE_DIR / "optimizer",
+    "tables": PLUMBING_CODE_DIR / "tables",
+    "analytics": PLUMBING_CODE_DIR / "analytics",
+    "text": PLUMBING_CODE_DIR / "text",
+    "uploads": PLUMBING_CODE_DIR / "uploads",
 }
 
 
@@ -67,7 +73,7 @@ def process_file(text_path: str) -> Dict:
         file_entry = {
             "i": pg_num,
             "p": str(text_path),
-            "o": str(PLUMBING_CODE_DIRS["original"] / f"{filename}.jpg"),
+            "o": str(PLUMBING_CODE_DIRS["optimizer"] / f"{filename}.jpg"),
             "pg": pg_num,
             "t": text_content,
         }

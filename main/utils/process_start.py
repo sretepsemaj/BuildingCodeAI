@@ -2,8 +2,20 @@
 import importlib
 import logging
 import os
+import sys
 import time
+from pathlib import Path
 from typing import List, Optional
+
+import django
+
+# Add project root to Python path
+project_root = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.append(project_root)
+
+# Set up Django environment
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.base")
+django.setup()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
