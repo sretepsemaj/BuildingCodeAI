@@ -28,6 +28,7 @@ PROCESS_ORDER = [
     "process_image",
     "process_json",
     "process_json_wash",
+    "process_groq",
 ]
 
 # Time to wait between processes (in seconds)
