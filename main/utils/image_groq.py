@@ -108,7 +108,7 @@ class GroqImageProcessor:
             image_path: Path to the image file.
 
         Returns:
-            Dictionary containing the API response.
+            Dictionary containing the API response with structured data.
         """
         try:
             base64_image = self.encode_image(image_path)
@@ -121,16 +121,25 @@ class GroqImageProcessor:
                         {
                             "type": "text",
                             "text": (
-                                "You are an expert plumbing code analyst. "
-                                "Please analyze this plumbing diagram or building plan:\n\n"
-                                "1. Identify plumbing fixtures, pipes, and components.\n"
-                                "2. Check compliance with plumbing codes and regulations.\n"
-                                "3. Highlight potential issues or code violations.\n"
-                                "4. Provide specific references to relevant code sections.\n"
-                                "5. Suggest improvements or corrections if needed.\n"
-                                "6. Note any safety concerns or requirements.\n\n"
-                                "Format your response in a clear, structured way that can be "
-                                "easily parsed for database storage."
+                                "You are an expert plumbing code analyst. Please analyze this "
+                                "plumbing code document and provide a structured response in "
+                                "the following format:\n\n"
+                                "1. SECTION NUMBERS:\n"
+                                "- List all section numbers mentioned (e.g., 301.1, 302.4)\n\n"
+                                "2. TABLE DATA:\n"
+                                "- Extract any table data in a structured format\n"
+                                "- Include table numbers, headers, and values\n\n"
+                                "3. CODE REQUIREMENTS:\n"
+                                "- Identify specific code requirements and regulations\n"
+                                "- Note any numerical values, measurements, or specifications\n\n"
+                                "4. CONTEXT SUMMARY:\n"
+                                "- Provide a brief summary of the main topics covered\n"
+                                "- Highlight key terms for semantic search\n\n"
+                                "5. CROSS-REFERENCES:\n"
+                                "- Note any references to other code sections or standards\n\n"
+                                "Format your response with clear section headers and bullet "
+                                "points for easy parsing. Use multiple lines for each "
+                                "section to improve readability."
                             ),
                         },
                         {
@@ -150,50 +159,70 @@ class GroqImageProcessor:
                 max_tokens=2000,  # Ensure we get detailed responses
             )
 
-            # Extract and structure the response
-            response = completion.choices[0].message.content
+            # Process and structure the response
+            if completion.choices:
+                response = completion.choices[0].message.content
 
-            # Process the response to make it more suitable for embedding
-            processed_response = self._process_response_for_embedding(response)
+                # Create a structured response dictionary
+                structured_response = {
+                    "sections": [],  # List of section numbers
+                    "tables": [],  # List of table data
+                    "requirements": [],  # List of code requirements
+                    "context": "",  # Summary for semantic search
+                    "references": [],  # Cross-references
+                    "raw_response": response,  # Original response
+                }
 
-            return {
-                "success": True,
-                "content": processed_response,
-                "error": None,
-            }
+                # Parse the response into sections
+                current_section = None
+                current_content = []
+
+                for line in response.split("\n"):
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    # Check for section headers
+                    if "SECTION NUMBERS:" in line or "1." in line:
+                        current_section = "sections"
+                        continue
+                    elif "TABLE DATA:" in line or "2." in line:
+                        current_section = "tables"
+                        continue
+                    elif "CODE REQUIREMENTS:" in line or "3." in line:
+                        current_section = "requirements"
+                        continue
+                    elif "CONTEXT SUMMARY:" in line or "4." in line:
+                        current_section = "context"
+                        continue
+                    elif "CROSS-REFERENCES:" in line or "5." in line:
+                        current_section = "references"
+                        continue
+
+                    # Process content based on section
+                    if current_section:
+                        if current_section == "context":
+                            structured_response[current_section] += line + " "
+                        elif line.startswith("-") or line.startswith("•"):
+                            content = line.lstrip("- •").strip()
+                            if current_section in [
+                                "sections",
+                                "tables",
+                                "requirements",
+                                "references",
+                            ]:
+                                structured_response[current_section].append(content)
+
+                # Clean up the context
+                structured_response["context"] = structured_response["context"].strip()
+
+                return structured_response
+
+            return {"error": "No response from model"}
 
         except Exception as e:
-            logger.error("Error processing image: %s", str(e), exc_info=True)
-            return {"success": False, "content": None, "error": str(e)}
-
-    def _process_response_for_embedding(self, response: str) -> str:
-        """Process the LLM response to make it more suitable for embedding.
-
-        Args:
-            response: Raw response from the LLM.
-
-        Returns:
-            Processed response optimized for embedding.
-        """
-        # Split the response into sections
-        sections = response.split("\n\n")
-
-        # Remove any markdown-style headers while keeping the content
-        processed_sections = []
-        for section in sections:
-            # Remove numbered lists (e.g., "1. ", "2. ")
-            section = "\n".join(line.lstrip("123456789. ") for line in section.split("\n"))
-            # Remove section headers (e.g., "OVERVIEW:", "TEXTUAL CONTENT:")
-            section = section.replace(":\n", "\n").replace(":", "")
-            processed_sections.append(section)
-
-        # Join sections with clear separators
-        processed_text = " | ".join(processed_sections)
-
-        # Remove multiple spaces and normalize whitespace
-        processed_text = " ".join(processed_text.split())
-
-        return processed_text
+            logger.error(f"Error processing image {image_path}: {str(e)}")
+            return {"error": str(e)}
 
     def process_images(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """

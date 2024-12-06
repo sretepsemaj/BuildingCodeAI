@@ -17,6 +17,7 @@ BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
 MEDIA_ROOT = BASE_DIR / "media"
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 JSON_PROCESSED_DIR = PLUMBING_CODE_DIR / "json_processed"
+JSON_FINAL_DIR = PLUMBING_CODE_DIR / "json_final"
 
 
 def process_json_file(json_path: str) -> None:
@@ -33,39 +34,67 @@ def process_json_file(json_path: str) -> None:
         # Initialize Groq processor
         processor = GroqImageProcessor()
 
-        # Process each chapter
-        for chapter_key, chapter_data in data.items():
-            if "tb" not in chapter_data:
-                continue
+        # Initialize output list
+        output_data = []
 
-            # Process each table entry
-            for table in chapter_data["tb"]:
-                if "io" not in table:
-                    continue
+        # Process table entries
+        if "tb" in data:
+            for table in data["tb"]:
+                # Get page number and text
+                page_num = table.get("i")
+                text = table.get("t", "")
 
-                image_path = table["io"]
-                logger.info(f"Processing image: {image_path}")
+                # Get image and table paths
+                table_path = table.get("t", "")
+                image_path = table.get("io", "")
 
-                try:
-                    # Process the image with Groq
-                    result = processor.process_image(image_path)
+                # Convert image path to analytics path
+                analytics_path = (
+                    str(image_path).replace("/optimizer/", "/analytics/").replace(".jpg", ".png")
+                )
 
-                    # Add the analysis result to the table entry
-                    if result and "choices" in result and result["choices"]:
-                        analysis = result["choices"][0]["message"]["content"]
-                        table["tg"] = analysis
-                        logger.info(f"Successfully processed image for page {table['i']}")
-                    else:
-                        logger.warning(f"No analysis result for image on page {table['i']}")
+                if os.path.exists(image_path):
+                    logger.info(f"Processing image: {image_path}")
 
-                except Exception as e:
-                    logger.error(f"Error processing image {image_path}: {str(e)}")
-                    continue
+                    try:
+                        # Process the image with Groq
+                        result = processor.process_image(image_path)
 
-        # Save the updated JSON
-        with open(json_path, "w") as f:
-            json.dump(data, f, indent=2)
-        logger.info(f"Successfully updated {json_path} with Groq analysis results")
+                        # Create entry in output format
+                        entry = {
+                            "page_num": page_num,
+                            "text": text,
+                            "table_path": table_path,
+                            "image_path": analytics_path,
+                            "groq_result": {
+                                "content": (
+                                    result.get("raw_response", "")
+                                    if result and "error" not in result
+                                    else ""
+                                )
+                            },
+                        }
+
+                        output_data.append(entry)
+                        logger.info(f"Successfully processed image: {image_path}")
+
+                    except Exception as e:
+                        logger.error(f"Error processing image {image_path}: {str(e)}")
+                        continue
+                else:
+                    logger.warning(f"Image not found: {image_path}")
+
+        # Save the output JSON
+        output_path = (
+            str(json_path)
+            .replace("/json_processed/", "/json_final/")
+            .replace(".json", "_groq.json")
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        with open(output_path, "w") as f:
+            json.dump(output_data, f, indent=2)
+        logger.info(f"Successfully saved results to {output_path}")
 
     except Exception as e:
         logger.error(f"Error processing JSON file {json_path}: {str(e)}")
@@ -75,24 +104,24 @@ def process_json_file(json_path: str) -> None:
 def process_all_json_files() -> None:
     """Process all JSON files in the processed directory."""
     try:
+        # Create output directory if it doesn't exist
+        os.makedirs(JSON_FINAL_DIR, exist_ok=True)
+
         # Process each JSON file
         for json_file in JSON_PROCESSED_DIR.glob("*.json"):
             logger.info(f"Processing {json_file}")
             process_json_file(str(json_file))
+
+        logger.info("Successfully processed all JSON files")
 
     except Exception as e:
         logger.error(f"Error processing JSON files: {str(e)}")
         raise
 
 
-def main() -> None:
+def main():
     """Main function to process all JSON files."""
-    try:
-        process_all_json_files()
-        logger.info("Successfully processed all JSON files")
-    except Exception as e:
-        logger.error(f"Error in main: {str(e)}")
-        raise
+    process_all_json_files()
 
 
 if __name__ == "__main__":
