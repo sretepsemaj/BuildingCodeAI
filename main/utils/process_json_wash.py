@@ -47,14 +47,14 @@ def read_table_data(table_file: str) -> Dict:
         return None
 
 
-def process_file(text_path: Union[str, Path]) -> Optional[Dict]:
+def process_file(text_path: Union[str, Path]) -> Optional[Tuple[Dict, Dict]]:
     """Process a single text file and its associated files.
 
     Args:
         text_path: Path to the text file
 
     Returns:
-        Dict containing processed file data or None if error
+        Tuple containing processed file data and extra info or None if error
     """
     try:
         text_path = Path(text_path)
@@ -80,23 +80,21 @@ def process_file(text_path: Union[str, Path]) -> Optional[Dict]:
             "i": pg_num,
             "p": str(text_path),
             "o": str(PLUMBING_CODE_DIRS["optimizer"] / f"{filename}.jpg"),
-            "pg": pg_num,
             "t": text_content,
         }
 
-        # Add table data if it exists
+        # Add table and analytics info to return separately
+        extra_info = {}
         if table_file.exists():
-            file_entry["tb"] = str(table_file)
-
-        # Add analytics image if it exists
+            extra_info["table"] = str(table_file)
         if analytics_file.exists():
-            file_entry["io"] = str(analytics_file)
+            extra_info["analytics"] = str(analytics_file)
 
-        return file_entry
+        return file_entry, extra_info
 
     except Exception as e:
         logger.error(f"Error processing file {text_path}: {str(e)}")
-        return None
+        return None, None
 
 
 def process_directory(base_dir: str) -> Dict[str, Dict]:
@@ -133,81 +131,78 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                     }
 
                 # Process the file
-                file_entry = process_file(str(file_path))
-                processed_data[chapter_key]["f"].append(file_entry)
+                file_entry, extra_info = process_file(str(file_path))
+                if file_entry:
+                    processed_data[chapter_key]["f"].append(file_entry)
 
-                # Extract chapter metadata from first page
-                if file_entry["i"] == 1 and "t" in file_entry:
-                    text_content = file_entry["t"]
-                    # Look for the chapter title pattern
-                    chapter_pattern = r"CHAPTER\s+\d+\s*\n\s*(.*?)(?:\n|SECTION|$)"
-                    chapter_match = re.search(
-                        chapter_pattern, text_content, re.DOTALL | re.IGNORECASE
-                    )
-                    if chapter_match:
-                        chapter_title = chapter_match.group(1).strip()
-                        processed_data[chapter_key]["m"]["ct"] = chapter_title
+                    # Add raw text
+                    if "t" in file_entry:
+                        processed_data[chapter_key]["r"].append(
+                            {"i": file_entry["i"], "t": file_entry["t"]}
+                        )
 
-                # Add raw text
-                if "t" in file_entry:
-                    processed_data[chapter_key]["r"].append(
-                        {"i": file_entry["i"], "t": file_entry["t"]}
-                    )
+                    # Add table if exists
+                    if extra_info and "table" in extra_info:
+                        table_entry = {
+                            "i": file_entry["i"],
+                            "t": extra_info["table"],
+                            "io": file_entry["o"],  # Add optimized image link
+                        }
+                        processed_data[chapter_key]["tb"].append(table_entry)
 
-                # Add table if exists
-                if "tb" in file_entry:
-                    table_entry = {
-                        "i": file_entry["i"],
-                        "t": file_entry["tb"],
-                        "f": file_entry["i"],
-                    }
-                    if "tb_data" in file_entry:
-                        table_entry["d"] = file_entry["tb_data"]
-                    if "tb_img" in file_entry:
-                        table_entry["img"] = file_entry["tb_img"]
-                    processed_data[chapter_key]["tb"].append(table_entry)
+                    # Extract chapter metadata from first page
+                    if file_entry["i"] == 1 and "t" in file_entry:
+                        text_content = file_entry["t"]
+                        # Look for the chapter title pattern
+                        chapter_pattern = r"CHAPTER\s+\d+\s*\n\s*(.*?)(?:\n|SECTION|$)"
+                        chapter_match = re.search(
+                            chapter_pattern, text_content, re.DOTALL | re.IGNORECASE
+                        )
+                        if chapter_match:
+                            chapter_title = chapter_match.group(1).strip()
+                            processed_data[chapter_key]["m"]["ct"] = chapter_title
 
-                # Process sections from text content
-                if "t" in file_entry:
-                    sections = []
-                    current_section = None
-                    for line in file_entry["t"].split("\n"):
-                        line = line.strip()
-                        if not line:
-                            continue
+                    # Process sections from text content
+                    if "t" in file_entry:
+                        sections = []
+                        current_section = None
+                        for line in file_entry["t"].split("\n"):
+                            line = line.strip()
+                            if not line:
+                                continue
 
-                        # Check for section header (e.g., "308.5.6.3 Interval of support.")
-                        section_match = re.match(r"^(\d+(?:\.\d+)*)\s+(.+)$", line)
-                        if section_match:
-                            if current_section:
-                                sections.append(current_section)
+                            # Check for section header (e.g., "308.5.6.3 Interval of support.")
+                            section_match = re.match(r"^(\d+(?:\.\d+)*)\s+(.+)$", line)
+                            if section_match:
+                                if current_section:
+                                    sections.append(current_section)
 
-                            section_id = section_match.group(1)
-                            section_title = section_match.group(2)
+                                section_id = section_match.group(1)
+                                section_title = section_match.group(2)
 
-                            # Split title and content at the first period after words
-                            title_parts = re.match(r"^(.+?\.)\s*(.*)$", section_title)
-                            if title_parts:
-                                title = title_parts.group(1)
-                                initial_content = title_parts.group(2)
-                            else:
-                                title = section_title
-                                initial_content = ""
+                                # Split title and content at the first period after words
+                                title_parts = re.match(r"^(.+?\.)\s*(.*)$", section_title)
+                                if title_parts:
+                                    title = title_parts.group(1)
+                                    initial_content = title_parts.group(2)
+                                else:
+                                    title = section_title
+                                    initial_content = ""
 
-                            current_section = {
-                                "i": section_id,
-                                "t": title,
-                                "c": initial_content + "\n" if initial_content else "",
-                                "f": file_entry["i"],
-                            }
-                        elif current_section:
-                            current_section["c"] += line + "\n"
+                                current_section = {
+                                    "i": section_id,
+                                    "t": title,
+                                    "c": initial_content + "\n" if initial_content else "",
+                                    "f": file_entry["i"],
+                                }
+                            elif current_section:
+                                current_section["c"] += line + "\n"
 
-                    if current_section:
-                        sections.append(current_section)
+                        if current_section:
+                            sections.append(current_section)
 
-                    # Add processed sections
-                    processed_data[chapter_key]["s"].extend(sections)
+                        # Add processed sections
+                        processed_data[chapter_key]["s"].extend(sections)
 
             except Exception as e:
                 logger.error(f"Error processing {file_path}: {str(e)}")
