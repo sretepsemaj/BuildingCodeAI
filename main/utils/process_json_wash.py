@@ -164,16 +164,28 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                         if not line:
                             continue
 
-                        # Check for section header (e.g., "308.5 Interval of support")
-                        section_match = re.match(r"^(\d+\.\d+(?:\.\d+)?)\s+(.+)$", line)
+                        # Check for section header (e.g., "308.5.6.3 Interval of support.")
+                        section_match = re.match(r"^(\d+(?:\.\d+)*)\s+(.+)$", line)
                         if section_match:
                             if current_section:
                                 sections.append(current_section)
+
                             section_id = section_match.group(1)
+                            section_title = section_match.group(2)
+
+                            # Split title and content at the first period after words
+                            title_parts = re.match(r"^(.+?\.)\s*(.*)$", section_title)
+                            if title_parts:
+                                title = title_parts.group(1)
+                                initial_content = title_parts.group(2)
+                            else:
+                                title = section_title
+                                initial_content = ""
+
                             current_section = {
                                 "i": section_id,
-                                "t": line,
-                                "c": "",
+                                "t": title,
+                                "c": initial_content + "\n" if initial_content else "",
                                 "f": file_entry["i"],
                             }
                         elif current_section:
