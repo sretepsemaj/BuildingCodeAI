@@ -281,6 +281,19 @@ API_URLS = {
     "PLEX": get_api_url("PLEX", "https://api.perplexity.ai/chat/completions"),
 }
 
+# AWS Settings
+AWS = {
+    "AWS_ACCESS_KEY_ID": get_env_value("AWS_ACCESS_KEY_ID", required=True),
+    "AWS_SECRET_ACCESS_KEY": get_env_value("AWS_SECRET_ACCESS_KEY", required=True),
+    "AWS_REGION": get_env_value("AWS_REGION", default="us-east-1"),
+    "AWS_S3_BUCKET": get_env_value("AWS_S3_BUCKET", default="buildingcodeai-media"),
+    "AWS_EC2_KEY_PATH": get_env_value("AWS_EC2_KEY_PATH"),
+}
+
+AWS_RESOURCES = {
+    "DYNAMODB_TABLE": "plumbing_code_sections",
+}
+
 # Logging Configuration
 LOGS_DIR = BASE_DIR / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,17 @@ import os
 import socket
 import sys
 
-from .base import ALLOWED_HOSTS, BASE_DIR, DATABASES, DEBUG, INSTALLED_APPS, MIDDLEWARE, STATIC_URL
+from .base import (
+    ALLOWED_HOSTS,
+    AWS,
+    AWS_RESOURCES,
+    BASE_DIR,
+    DATABASES,
+    DEBUG,
+    INSTALLED_APPS,
+    MIDDLEWARE,
+    STATIC_URL,
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
