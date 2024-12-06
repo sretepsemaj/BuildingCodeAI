@@ -214,6 +214,7 @@ PLUMBING_CODE_DIRS = {
     "json_processed": PLUMBING_CODE_DIR / "json_processed",
     "tables": PLUMBING_CODE_DIR / "tables",
     "analytics": PLUMBING_CODE_DIR / "analytics",
+    "optimizer": PLUMBING_CODE_DIR / "optimizer",
     "original": PLUMBING_CODE_DIR / "original",
     "uploads": PLUMBING_CODE_DIR / "uploads",
 }
@@ -332,11 +333,6 @@ LOGGING = {
             "propagate": True,
         },
         "main.utils.process_image": {
-            "handlers": ["console", "image_processing"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "main.utils.images_optimizer": {
             "handlers": ["console", "image_processing"],
             "level": "INFO",
             "propagate": False,
