@@ -136,6 +136,18 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                 file_entry = process_file(str(file_path))
                 processed_data[chapter_key]["f"].append(file_entry)
 
+                # Extract chapter metadata from first page
+                if file_entry["i"] == 1 and "t" in file_entry:
+                    text_content = file_entry["t"]
+                    # Look for the chapter title pattern
+                    chapter_pattern = r"CHAPTER\s+\d+\s*\n\s*(.*?)(?:\n|SECTION|$)"
+                    chapter_match = re.search(
+                        chapter_pattern, text_content, re.DOTALL | re.IGNORECASE
+                    )
+                    if chapter_match:
+                        chapter_title = chapter_match.group(1).strip()
+                        processed_data[chapter_key]["m"]["ct"] = chapter_title
+
                 # Add raw text
                 if "t" in file_entry:
                     processed_data[chapter_key]["r"].append(
