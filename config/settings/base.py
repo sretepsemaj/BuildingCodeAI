@@ -191,7 +191,11 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Media files (User uploaded files)
+# Email settings for development (console backend)
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@buildingcodeai.com"
+
+# Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -226,6 +230,12 @@ PLUMBING_CODE_DIRS = {
 for directory in [MEDIA_ROOT, PLUMBING_CODE_DIR, *PLUMBING_CODE_DIRS.values()]:
     directory.mkdir(parents=True, exist_ok=True)
 
+PLUMBING_CODE_OPTIMIZER_DIR = PLUMBING_CODE_DIR / "optimizer"
+PLUMBING_CODE_JSON_DIR = PLUMBING_CODE_DIR / "json_final"
+
+os.makedirs(PLUMBING_CODE_OPTIMIZER_DIR, exist_ok=True)
+os.makedirs(PLUMBING_CODE_JSON_DIR, exist_ok=True)
+
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = False  # Don't allow all origins in production
 CORS_ALLOWED_ORIGINS = get_list_env(
@@ -243,13 +253,11 @@ LOGIN_URL = "login"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email Configuration
-EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = get_env_value("EMAIL_HOST", "localhost")
 EMAIL_PORT = get_int_env("EMAIL_PORT", 587)
 EMAIL_HOST_USER = get_env_value("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = get_env_value("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = True
-DEFAULT_FROM_EMAIL = get_env_value("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 
 # Required API Keys - validate on startup
 REQUIRED_API_KEYS = {
