@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -40,12 +41,15 @@ def process_json_file(json_path: str) -> None:
 
         # Track if any changes were made
         changes_made = False
+        has_valid_fields = False
 
         # Process fields at root level
         for field in data.get("f", []):
             # Only process fields that have a CSV file (p is not null)
             if not field.get("p"):
                 continue
+
+            has_valid_fields = True
 
             # Look for image path in 'o' field
             image_path = field.get("o", "")
@@ -75,20 +79,28 @@ def process_json_file(json_path: str) -> None:
                 logger.error(f"Error processing image {image_path}: {str(e)}")
                 continue
 
-        # Save the updated JSON if changes were made
-        if changes_made:
-            output_path = (
-                str(json_path)
-                .replace("/json_processed/", "/json_final/")
-                .replace(".json", "_groq.json")
-            )
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Get the output path
+        output_path = (
+            str(json_path)
+            .replace("/json_processed/", "/json_final/")
+            .replace(".json", "_groq.json")
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+        if changes_made:
+            # Save the updated JSON with changes
             with open(output_path, "w") as f:
                 json.dump(data, f, indent=2)
             logger.info(f"Successfully saved results to {output_path}")
+        elif not has_valid_fields:
+            # If no valid fields were found, just copy the original file
+            shutil.copy2(json_path, output_path)
+            logger.info(f"No valid fields found, copied original file to {output_path}")
         else:
-            logger.info(f"No changes made to {json_path}")
+            # If there were valid fields but no changes made, still save the file
+            with open(output_path, "w") as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"No changes made, saved original data to {output_path}")
 
     except Exception as e:
         logger.error(f"Error processing JSON file {json_path}: {str(e)}")
