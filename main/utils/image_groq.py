@@ -1,19 +1,31 @@
+"""Module for processing images using the Groq API."""
+
 import base64
 import io
 import json
 import logging
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, Union, cast
 
+# Third-party imports
 import groq  # type: ignore
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 from dotenv import load_dotenv  # type: ignore
 from fpdf import FPDF  # type: ignore
 from PIL import Image  # type: ignore
+
+# Add the project root to the Python path
+root_path = str(Path(__file__).parent.parent.parent)
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+# Local imports
+from config.settings.base import BASE_DIR, MEDIA_ROOT, PLUMBING_CODE_DIR  # noqa: E402
 
 # Set up logging
 logger = logging.getLogger(__name__)
