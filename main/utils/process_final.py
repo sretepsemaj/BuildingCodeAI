@@ -49,8 +49,16 @@ def update_processed_json(processed_json_path: str, groq_json_path: str, output_
 
         # If GROQ results are empty, just copy the original file
         if is_groq_empty(groq_data):
-            shutil.copy2(processed_json_path, output_path)
-            logger.info(f"GROQ results were empty. Copied original file to {output_path}")
+            # Load the original file to remove 'r' section
+            processed_data = load_json_file(processed_json_path)
+            if "r" in processed_data:
+                del processed_data["r"]
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(processed_data, f, indent=2, ensure_ascii=False)
+            logger.info(
+                "GROQ results were empty. Copied original file (without 'r' section) "
+                f"to {output_path}"
+            )
             return
 
         # If GROQ has content, proceed with the update
@@ -71,6 +79,10 @@ def update_processed_json(processed_json_path: str, groq_json_path: str, output_
                 if page_num in groq_results:
                     # Update the text content
                     item["t"] = groq_results[page_num]
+
+        # Remove the 'r' section if it exists
+        if "r" in processed_data:
+            del processed_data["r"]
 
         # Save the updated JSON
         with open(output_path, "w", encoding="utf-8") as f:
