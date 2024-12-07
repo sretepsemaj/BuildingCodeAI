@@ -72,6 +72,13 @@ LOGGING = {
             "filename": BASE_DIR / "logs/debug.log",
             "formatter": "verbose",
         },
+        "aws_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": BASE_DIR / "logs/process_aws.log",
+            "formatter": "verbose",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 3,
+        },
     },
     "formatters": {
         "verbose": {
@@ -87,6 +94,11 @@ LOGGING = {
         },
         "django.db.backends": {
             "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_aws": {
+            "handlers": ["console", "aws_file"],
             "level": "INFO",
             "propagate": False,
         },

@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 # Set up logging first
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("main.utils.process_aws")
 
 # Add the project root to the Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
