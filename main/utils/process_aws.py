@@ -1,0 +1,136 @@
+"""Script to upload processed JSON and image files to AWS."""
+
+import json
+import logging
+import os
+from pathlib import Path
+from typing import Dict, List
+
+import boto3
+from botocore.exceptions import ClientError
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Define paths
+BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
+MEDIA_ROOT = BASE_DIR / "media"
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIRS = {
+    "json_final": PLUMBING_CODE_DIR / "json_final",
+    "optimizer": PLUMBING_CODE_DIR / "optimizer",
+}
+
+# AWS Configuration
+AWS_BUCKET_NAME = "buildingcodeai-media"
+AWS_REGION = "us-east-1"  # Change this to your preferred region
+
+
+def get_aws_client():
+    """Get AWS S3 client."""
+    try:
+        s3_client = boto3.client("s3", region_name=AWS_REGION)
+        return s3_client
+    except Exception as e:
+        logger.error(f"Error creating AWS client: {str(e)}")
+        raise
+
+
+def upload_file(file_path: str, bucket: str, object_name: str = None) -> bool:
+    """Upload a file to an S3 bucket.
+
+    Args:
+        file_path: Path to file to upload
+        bucket: Bucket to upload to
+        object_name: S3 object name (if different from local file name)
+
+    Returns:
+        True if file was uploaded, else False
+    """
+    # If S3 object_name not specified, use file_path
+    if object_name is None:
+        object_name = os.path.basename(file_path)
+
+    s3_client = get_aws_client()
+
+    try:
+        s3_client.upload_file(file_path, bucket, object_name)
+        logger.info(f"Successfully uploaded {file_path} to {bucket}/{object_name}")
+        return True
+    except ClientError as e:
+        logger.error(f"Error uploading file {file_path}: {str(e)}")
+        return False
+
+
+def process_json_file(json_path: Path) -> List[str]:
+    """Process a JSON file and return list of referenced image paths.
+
+    Args:
+        json_path: Path to JSON file
+
+    Returns:
+        List of image paths referenced in the JSON
+    """
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Extract image paths from 'o' field in 'f' entries
+        image_paths = []
+        for entry in data.get("f", []):
+            if "o" in entry:
+                image_paths.append(entry["o"])
+
+        return image_paths
+    except Exception as e:
+        logger.error(f"Error processing JSON file {json_path}: {str(e)}")
+        return []
+
+
+def upload_files():
+    """Upload JSON and image files to AWS S3."""
+    try:
+        # Process each *_final.json file (skip *_groq.json)
+        for json_file in PLUMBING_CODE_DIRS["json_final"].glob("*_final.json"):
+            logger.info(f"Processing {json_file}")
+
+            # Upload JSON file
+            json_s3_path = f"json/{json_file.name}"
+            if not upload_file(str(json_file), AWS_BUCKET_NAME, json_s3_path):
+                raise Exception(f"Failed to upload JSON file: {json_file}")
+
+            # Get referenced image paths and upload them
+            image_paths = process_json_file(json_file)
+            for img_path in image_paths:
+                if os.path.exists(img_path):
+                    # Create S3 path maintaining directory structure
+                    img_s3_path = f"images/{os.path.basename(img_path)}"
+                    if not upload_file(img_path, AWS_BUCKET_NAME, img_s3_path):
+                        raise Exception(f"Failed to upload image file: {img_path}")
+                else:
+                    logger.warning(f"Image file not found: {img_path}")
+
+    except Exception as e:
+        logger.error(f"Error in upload process: {str(e)}")
+        raise
+
+
+def main():
+    """Main function to handle AWS uploads."""
+    try:
+        # Verify AWS credentials and bucket access
+        s3_client = get_aws_client()
+        s3_client.head_bucket(Bucket=AWS_BUCKET_NAME)
+
+        # Upload files
+        upload_files()
+
+        logger.info("Successfully completed AWS upload process")
+    except Exception as e:
+        logger.error(f"Error in main process: {str(e)}")
+        raise
+
+
+if __name__ == "__main__":
+    main()
