@@ -285,8 +285,50 @@ def view_batch_chapters(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered batch chapters page.
     """
-    chapters = ProcessedDocument.objects.all().order_by("-created_at")
-    return render(request, "main/admin/chapters.html", {"chapters": chapters})
+    json_dir = os.path.join(settings.MEDIA_ROOT, "plumbing_code", "json_final")
+    chapters_data = []
+
+    try:
+        # Get all JSON files in the directory
+        json_files = [f for f in os.listdir(json_dir) if f.endswith("_groq.json")]
+
+        for json_file in json_files:
+            file_path = os.path.join(json_dir, json_file)
+            with open(file_path, "r") as f:
+                data = json.load(f)
+
+            # Get the base filename without _groq.json
+            base_name = json_file.replace("_groq.json", "")
+
+            # Prepare pages data
+            pages = []
+            for i in range(1, len(data.get("f", [])) + 1):
+                page_image = f"{base_name}_{i}pg.jpg"
+                page_url = f"{settings.MEDIA_URL}plumbing_code/optimizer/{page_image}"
+                pages.append(
+                    {
+                        "number": i,
+                        "image_url": page_url,
+                        "thumbnail_url": page_url,
+                    }
+                )
+
+            chapter_data = {
+                "filename": base_name,
+                "pages": pages,
+                "json_url": f"{settings.MEDIA_URL}plumbing_code/json_final/{json_file}",
+            }
+            chapters_data.append(chapter_data)
+
+        # Sort chapters by filename
+        chapters_data.sort(key=lambda x: x["filename"])
+
+    except Exception as e:
+        logger.error(f"Error loading chapters: {str(e)}")
+        messages.error(request, f"Error loading chapters: {str(e)}")
+        chapters_data = []
+
+    return render(request, "main/admin/chapters.html", {"chapters": chapters_data})
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:

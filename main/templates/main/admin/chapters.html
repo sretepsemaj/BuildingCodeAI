@@ -6,31 +6,94 @@
     <h2>Processed Chapters</h2>
 
     {% if chapters %}
-        {% for chapter in chapters %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">{{ chapter.filename }}</h5>
+        <div class="row">
+            {% for chapter in chapters %}
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ chapter.filename }}</h5>
+                        <span class="badge bg-light text-dark">{{ chapter.pages|length }} Pages</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>Chapter Information</h6>
+                                <ul class="list-group">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        Status
+                                        <span class="badge bg-success">Processed</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        JSON File
+                                        <a href="{{ chapter.json_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            View JSON
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="col-md-8">
+                                <h6>Pages</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Page</th>
+                                                <th>Image</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for page in chapter.pages %}
+                                            <tr>
+                                                <td>{{ page.number }}</td>
+                                                <td>
+                                                    <img src="{{ page.thumbnail_url }}"
+                                                         alt="Page {{ page.number }}"
+                                                         class="img-thumbnail"
+                                                         style="max-height: 50px;">
+                                                </td>
+                                                <td>
+                                                    <a href="{{ page.image_url }}"
+                                                       target="_blank"
+                                                       class="btn btn-sm btn-primary">
+                                                        View Full Image
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <pre class="json-viewer">{{ chapter.data|pprint }}</pre>
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     {% else %}
         <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
             No processed chapters found. Upload and process some images first.
         </div>
     {% endif %}
 </div>
 
 <style>
-.json-viewer {
-    background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: 0.25rem;
-    max-height: 500px;
-    overflow-y: auto;
-    white-space: pre-wrap;
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+.card-header {
+    border-bottom: 0;
+}
+.table {
+    margin-bottom: 0;
+}
+.img-thumbnail {
+    transition: transform 0.2s;
+}
+.img-thumbnail:hover {
+    transform: scale(1.1);
 }
 </style>
 {% endblock %}

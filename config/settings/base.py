@@ -191,18 +191,21 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
+# Media files (User uploaded files)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
+    BASE_DIR / "main/static",
 ]
 
-# Media files (User uploaded files)
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Ensure static directories exist
+for static_dir in [STATIC_ROOT, *STATICFILES_DIRS]:
+    static_dir.mkdir(parents=True, exist_ok=True)
 
 # Plumbing code media subdirectories
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
