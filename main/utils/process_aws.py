@@ -8,6 +8,10 @@ from typing import Dict, List
 
 import boto3
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -23,14 +27,27 @@ PLUMBING_CODE_DIRS = {
 }
 
 # AWS Configuration
-AWS_BUCKET_NAME = "buildingcodeai-media"
-AWS_REGION = "us-east-1"  # Change this to your preferred region
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "buildingcodeai-media")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+
+if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY]):
+    raise ValueError(
+        "AWS credentials not found. Please set AWS_ACCESS_KEY_ID and "
+        "AWS_SECRET_ACCESS_KEY environment variables."
+    )
 
 
 def get_aws_client():
     """Get AWS S3 client."""
     try:
-        s3_client = boto3.client("s3", region_name=AWS_REGION)
+        s3_client = boto3.client(
+            "s3",
+            region_name=AWS_REGION,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        )
         return s3_client
     except Exception as e:
         logger.error(f"Error creating AWS client: {str(e)}")
@@ -79,8 +96,10 @@ def process_json_file(json_path: Path) -> List[str]:
         # Extract image paths from 'o' field in 'f' entries
         image_paths = []
         for entry in data.get("f", []):
-            if "o" in entry:
-                image_paths.append(entry["o"])
+            if "o" in entry and entry["o"]:
+                img_path = entry["o"]
+                if os.path.exists(img_path):
+                    image_paths.append(img_path)
 
         return image_paths
     except Exception as e:
@@ -91,8 +110,8 @@ def process_json_file(json_path: Path) -> List[str]:
 def upload_files():
     """Upload JSON and image files to AWS S3."""
     try:
-        # Process each *_final.json file (skip *_groq.json)
-        for json_file in PLUMBING_CODE_DIRS["json_final"].glob("*_final.json"):
+        # Process each *_groq.json file
+        for json_file in PLUMBING_CODE_DIRS["json_final"].glob("*_groq.json"):
             logger.info(f"Processing {json_file}")
 
             # Upload JSON file
@@ -103,13 +122,12 @@ def upload_files():
             # Get referenced image paths and upload them
             image_paths = process_json_file(json_file)
             for img_path in image_paths:
-                if os.path.exists(img_path):
-                    # Create S3 path maintaining directory structure
-                    img_s3_path = f"images/{os.path.basename(img_path)}"
-                    if not upload_file(img_path, AWS_BUCKET_NAME, img_s3_path):
-                        raise Exception(f"Failed to upload image file: {img_path}")
-                else:
-                    logger.warning(f"Image file not found: {img_path}")
+                # Create S3 path maintaining directory structure
+                img_s3_path = f"images/{os.path.basename(img_path)}"
+                if not upload_file(img_path, AWS_BUCKET_NAME, img_s3_path):
+                    logger.warning(f"Failed to upload image: {img_path}")
+
+        logger.info("Successfully completed file upload process")
 
     except Exception as e:
         logger.error(f"Error in upload process: {str(e)}")
@@ -119,14 +137,23 @@ def upload_files():
 def main():
     """Main function to handle AWS uploads."""
     try:
-        # Verify AWS credentials and bucket access
+        # Check if bucket exists
         s3_client = get_aws_client()
         s3_client.head_bucket(Bucket=AWS_BUCKET_NAME)
 
         # Upload files
         upload_files()
-
         logger.info("Successfully completed AWS upload process")
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code == "404":
+            logger.error(f"Bucket {AWS_BUCKET_NAME} does not exist")
+        elif error_code == "403":
+            logger.error(f"Access denied to bucket {AWS_BUCKET_NAME}")
+        else:
+            logger.error(f"Error accessing bucket {AWS_BUCKET_NAME}: {str(e)}")
+        raise
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}")
         raise
