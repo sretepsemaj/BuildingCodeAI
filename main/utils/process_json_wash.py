@@ -78,7 +78,7 @@ def process_file(text_path: Union[str, Path]) -> Optional[Tuple[Dict, Dict]]:
         # Create base file entry
         file_entry = {
             "i": pg_num,
-            "p": str(text_path),
+            "p": str(table_file) if table_file.exists() else None,
             "o": str(PLUMBING_CODE_DIRS["optimizer"] / f"{filename}.jpg"),
             "t": text_content,
         }
@@ -125,30 +125,13 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                             "ct": "",  # Will be filled from content
                         },
                         "f": [],
-                        "r": [],
                         "s": [],
-                        "tb": [],
                     }
 
                 # Process the file
                 file_entry, extra_info = process_file(str(file_path))
                 if file_entry:
                     processed_data[chapter_key]["f"].append(file_entry)
-
-                    # Add raw text
-                    if "t" in file_entry:
-                        processed_data[chapter_key]["r"].append(
-                            {"i": file_entry["i"], "t": file_entry["t"]}
-                        )
-
-                    # Add table if exists
-                    if extra_info and "table" in extra_info:
-                        table_entry = {
-                            "i": file_entry["i"],
-                            "t": extra_info["table"],
-                            "io": file_entry["o"],  # Add optimized image link
-                        }
-                        processed_data[chapter_key]["tb"].append(table_entry)
 
                     # Extract chapter metadata from first page
                     if file_entry["i"] == 1 and "t" in file_entry:
@@ -205,11 +188,12 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
                         processed_data[chapter_key]["s"].extend(sections)
 
             except Exception as e:
-                logger.error(f"Error processing {file_path}: {str(e)}")
+                logger.error(f"Error processing file {file_path}: {str(e)}")
                 continue
 
-        # Sort sections by ID numerically
+        # Sort files by page number and sections by ID
         for chapter_data in processed_data.values():
+            chapter_data["f"].sort(key=lambda x: x["i"])
 
             def section_key(section):
                 parts = section["i"].split(".")
@@ -220,8 +204,8 @@ def process_directory(base_dir: str) -> Dict[str, Dict]:
         return processed_data
 
     except Exception as e:
-        logger.error(f"Error processing directory: {str(e)}")
-        raise
+        logger.error(f"Error processing directory {base_dir}: {str(e)}")
+        return {}
 
 
 def save_json(data: Dict[str, Dict], output_dir: str) -> None:
