@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib
 import logging
+import logging.handlers
 import os
 import sys
 import time
@@ -9,17 +10,46 @@ from typing import List, Optional
 
 import django
 
-# Add project root to Python path
-project_root = str(Path(__file__).resolve().parent.parent.parent)
-sys.path.append(project_root)
+# Add project root to Python path first
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_root))
 
-# Set up Django environment
+# Create logs directory if it doesn't exist
+logs_dir = project_root / "logs"
+logs_dir.mkdir(exist_ok=True)
+
+# Set up logging first, before Django setup
+logger = logging.getLogger("main.utils.process_start")
+logger.setLevel(logging.INFO)
+
+# Remove any existing handlers to avoid duplicates
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+# Add file handler
+file_handler = logging.handlers.RotatingFileHandler(
+    filename=logs_dir / "process_start.log",
+    maxBytes=10485760,  # 10MB
+    backupCount=3,
+    encoding="utf-8",
+)
+formatter = logging.Formatter(
+    "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+    style="{",
+)
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
+# Add console handler for immediate feedback
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Now set up Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.base")
 django.setup()
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+from django.conf import settings  # noqa: E402
 
 # List of processes to run in order
 PROCESS_ORDER = [

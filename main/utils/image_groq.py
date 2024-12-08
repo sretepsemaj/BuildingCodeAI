@@ -48,6 +48,32 @@ class GroqImageProcessor:
         if not self.api_key:
             raise ValueError("GROQ_API_KEY not found in environment variables")
         self.client = groq.Groq(api_key=self.api_key)
+        # Rate limiting settings
+        self.max_retries = 3
+        self.initial_retry_delay = 1.0  # seconds
+        self.max_retry_delay = 8.0  # seconds
+        self.batch_size = 5
+        self.prompt_template = (
+            "You are an expert plumbing code analyst. Please analyze this "
+            "plumbing code document and provide a structured response in "
+            "the following format:\n\n"
+            "1. SECTION NUMBERS:\n"
+            "- List all section numbers mentioned (e.g., 301.1, 302.4)\n\n"
+            "2. TABLE DATA:\n"
+            "- Extract any table data in a structured format\n"
+            "- Include table numbers, headers, and values\n\n"
+            "3. CODE REQUIREMENTS:\n"
+            "- Identify specific code requirements and regulations\n"
+            "- Note any numerical values, measurements, or specifications\n\n"
+            "4. CONTEXT SUMMARY:\n"
+            "- Provide a brief summary of the main topics covered\n"
+            "- Highlight key terms for semantic search\n\n"
+            "5. CROSS-REFERENCES:\n"
+            "- Note any references to other code sections or standards\n\n"
+            "Format your response with clear section headers and bullet "
+            "points for easy parsing. Use multiple lines for each "
+            "section to improve readability."
+        )
 
     def encode_image(self, image_path: str, max_size: int = 800) -> str:
         """
@@ -94,101 +120,104 @@ class GroqImageProcessor:
         Returns:
             Base64 encoded string of the image.
         """
-        with Image.open(image_path) as img:
-            img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format="JPEG", quality=85, optimize=True)
-            img_byte_arr_value = img_byte_arr.getvalue()
+        if not os.path.exists(image_path):
+            logger.error(f"Image file not found: {image_path}")
+            return {"error": "Image file not found", "success": False}
 
-            return base64.b64encode(img_byte_arr_value).decode("utf-8")
+        # Read and encode the image
+        try:
+            with open(image_path, "rb") as image_file:
+                image_data = base64.b64encode(image_file.read()).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Error reading image file {image_path}: {str(e)}")
+            return {"error": f"Error reading image: {str(e)}", "success": False}
+
+        return image_data
 
     def _process_image_batch(self, image_paths: List[str]) -> List[str]:
         """Process a batch of images and return their base64 encodings.
 
         Args:
-            image_paths: List of paths to images to process.
+            image_paths: List of paths to image files.
 
         Returns:
-            List of base64 encoded image strings.
+            List of base64 encoded strings.
         """
-        return [self._encode_image(img_path) for img_path in image_paths]
+        base64_images = []
+        for path in image_paths:
+            try:
+                base64_str = self._encode_image(path)
+                if isinstance(base64_str, dict) and not base64_str.get("success", True):
+                    logger.error(f"Failed to encode image {path}: {base64_str['error']}")
+                    continue
+                base64_images.append(base64_str)
+            except Exception as e:
+                logger.error(f"Error in batch processing for {path}: {e}")
+                continue
+        return base64_images
 
     def process_image(self, image_path: str) -> Dict[str, Any]:
-        """
-        Process a single image using Groq API with Llama vision model.
+        """Process a single image using Groq API with Llama vision model.
+
+        This method handles rate limiting and retries with exponential backoff.
 
         Args:
-            image_path: Path to the image file.
+            image_path: Path to the image file to process.
 
         Returns:
-            Dictionary containing the API response with structured data.
+            Dict containing the processed results or error information.
         """
-        try:
-            base64_image = self.encode_image(image_path)
+        retry_count = 0
+        retry_delay = self.initial_retry_delay
 
-            # Prepare the prompt for the image analysis
+        try:
+            # Encode the image
+            base64_image = self._encode_image(image_path)
+            if isinstance(base64_image, dict) and not base64_image.get("success", True):
+                return base64_image
+
+            # Prepare the messages for the API
             messages = [
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "text",
-                            "text": (
-                                "You are an expert plumbing code analyst. Please analyze this "
-                                "plumbing code document and provide a structured response in "
-                                "the following format:\n\n"
-                                "1. SECTION NUMBERS:\n"
-                                "- List all section numbers mentioned (e.g., 301.1, 302.4)\n\n"
-                                "2. TABLE DATA:\n"
-                                "- Extract any table data in a structured format\n"
-                                "- Include table numbers, headers, and values\n\n"
-                                "3. CODE REQUIREMENTS:\n"
-                                "- Identify specific code requirements and regulations\n"
-                                "- Note any numerical values, measurements, or specifications\n\n"
-                                "4. CONTEXT SUMMARY:\n"
-                                "- Provide a brief summary of the main topics covered\n"
-                                "- Highlight key terms for semantic search\n\n"
-                                "5. CROSS-REFERENCES:\n"
-                                "- Note any references to other code sections or standards\n\n"
-                                "Format your response with clear section headers and bullet "
-                                "points for easy parsing. Use multiple lines for each "
-                                "section to improve readability."
-                            ),
-                        },
-                        {
                             "type": "image_url",
                             "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        },
+                        {
+                            "type": "text",
+                            "text": self.prompt_template,
                         },
                     ],
                 }
             ]
 
-            # Create a new client
-            client = groq.Groq(api_key=self.api_key)
-            completion = client.chat.completions.create(
+            logger.info(f"Processing image: {image_path}")
+            completion = self.client.chat.completions.create(
                 model="llama-3.2-90b-vision-preview",
                 messages=messages,
-                temperature=0.1,  # Lower temperature for more consistent output
-                max_tokens=2000,  # Ensure we get detailed responses
+                temperature=0.1,
+                max_tokens=2000,
             )
 
-            # Process and structure the response
             if completion.choices:
                 response = completion.choices[0].message.content
+                logger.info(f"Successfully processed image: {image_path}")
 
                 # Create a structured response dictionary
                 structured_response = {
-                    "sections": [],  # List of section numbers
-                    "tables": [],  # List of table data
-                    "requirements": [],  # List of code requirements
-                    "context": "",  # Summary for semantic search
-                    "references": [],  # Cross-references
-                    "raw_response": response,  # Original response
+                    "sections": [],
+                    "tables": [],
+                    "requirements": [],
+                    "context": "",
+                    "references": [],
+                    "raw_response": response,
+                    "success": True,
                 }
 
                 # Parse the response into sections
                 current_section = None
-                current_content = []
-
                 for line in response.split("\n"):
                     line = line.strip()
                     if not line:
@@ -227,18 +256,34 @@ class GroqImageProcessor:
 
                 # Clean up the context
                 structured_response["context"] = structured_response["context"].strip()
-
                 return structured_response
 
-            return {"error": "No response from model"}
+            logger.warning(f"No response from model for image: {image_path}")
+            return {"error": "No response from model", "success": False}
+
+        except groq.error.RateLimitError as e:
+            retry_count += 1
+            if retry_count <= self.max_retries:
+                logger.warning(
+                    f"Rate limit hit for {image_path}. "
+                    f"Attempt {retry_count} of {self.max_retries}. "
+                    f"Retrying in {retry_delay} seconds..."
+                )
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, self.max_retry_delay)  # Exponential backoff
+            else:
+                logger.error(
+                    f"Rate limit exceeded after {self.max_retries} retries for {image_path}"
+                )
+                return {"error": f"Rate limit exceeded: {str(e)}", "success": False}
 
         except Exception as e:
-            logger.error(f"Error processing image {image_path}: {str(e)}")
-            return {"error": str(e)}
+            logger.error(f"Error processing image {image_path}: {str(e)}", exc_info=True)
+            return {"error": str(e), "success": False}
 
     def process_images(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """
-        Process multiple images using Groq API.
+        Process multiple images using Groq API with batch processing and rate limiting.
 
         Args:
             image_paths: List of paths to image files.
@@ -246,10 +291,17 @@ class GroqImageProcessor:
         Returns:
             List of dictionaries containing API responses.
         """
-        results = []
-        for image_path in image_paths:
-            result = self.process_image(image_path)
-            results.append(result)
+        results, error = self.batch_process_images(
+            image_paths=image_paths,
+            output_dir=None,  # Not needed for this method
+            batch_size=self.batch_size,
+            delay=self.initial_retry_delay,
+        )
+
+        if error:
+            logger.error(f"Batch processing error: {error}")
+            return [{"error": error, "success": False}]
+
         return results
 
     def process_uploaded_file(self, uploaded_file: UploadedFile, output_dir: str) -> Dict[str, Any]:

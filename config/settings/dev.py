@@ -102,6 +102,11 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
+        "main.utils.process_start": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
 
