@@ -34,11 +34,14 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+(function() {  // Using IIFE to prevent global scope pollution
     const form = document.getElementById('uploadForm');
+    if (!form) return;  // Guard clause to prevent multiple initialization
+
     const preview = document.getElementById('preview');
     const progress = document.querySelector('.progress');
     const progressBar = document.querySelector('.progress-bar');
@@ -47,27 +50,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     // File Upload Preview
-    document.getElementById('images').addEventListener('change', function(e) {
-        preview.innerHTML = '';
-        for (const file of this.files) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                preview.innerHTML += `
-                    <div class="preview-image mb-2">
-                        <img src="${e.target.result}" style="max-height: 100px; margin-right: 10px;">
-                        <span>${file.name}</span>
-                    </div>
-                `;
+    const imageInput = document.getElementById('images');
+    if (imageInput) {
+        imageInput.addEventListener('change', function(e) {
+            preview.innerHTML = '';
+            for (const file of this.files) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML += `
+                        <div class="preview-image mb-2">
+                            <img src="${e.target.result}" style="max-height: 100px; margin-right: 10px;">
+                            <span>${file.name}</span>
+                        </div>
+                    `;
+                }
+                reader.readAsDataURL(file);
             }
-            reader.readAsDataURL(file);
-        }
-    });
+        });
+    }
 
     // File Upload Handler
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
         const formData = new FormData(this);
-        formData.append('csrfmiddlewaretoken', csrfToken);
+
+        // Prevent double submission
+        const submitButton = this.querySelector('button[type="submit"]');
+        if (submitButton) submitButton.disabled = true;
 
         progress.classList.remove('d-none');
         progressBar.style.width = '0%';
@@ -91,36 +100,39 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Error uploading files: ' + error);
         } finally {
             progress.classList.add('d-none');
+            if (submitButton) submitButton.disabled = false;
         }
     });
 
     // Process Button Handler
-    processButton.addEventListener('click', async function() {
-        processButton.disabled = true;
-        processStatus.innerHTML = '<div class="alert alert-info">Processing started...</div>';
+    if (processButton) {
+        processButton.addEventListener('click', async function() {
+            if (this.disabled) return;  // Prevent double-click
+            this.disabled = true;
+            processStatus.innerHTML = '<div class="alert alert-info">Processing started...</div>';
 
-        try {
-            const response = await fetch('/process/start/', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken,
-                    'Content-Type': 'application/json'
+            try {
+                const response = await fetch('/process/start/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    processStatus.innerHTML = '<div class="alert alert-success">Processing completed! <a href="/batch_chapters/" class="alert-link">View Results</a></div>';
+                } else {
+                    processStatus.innerHTML = '<div class="alert alert-danger">Processing failed: ' + result.message + '</div>';
                 }
-            });
-
-            const result = await response.json();
-            if (result.status === 'success') {
-                processStatus.innerHTML = '<div class="alert alert-success">Processing completed! <a href="/batch_chapters/" class="alert-link">View Results</a></div>';
-            } else {
-                processStatus.innerHTML = '<div class="alert alert-danger">Processing failed: ' + result.message + '</div>';
+            } catch (error) {
+                processStatus.innerHTML = '<div class="alert alert-danger">Error during processing: ' + error + '</div>';
+            } finally {
+                this.disabled = false;
             }
-        } catch (error) {
-            processStatus.innerHTML = '<div class="alert alert-danger">Error during processing: ' + error + '</div>';
-        } finally {
-            processButton.disabled = false;
-        }
-    });
-});
+        });
+    }
+})();  // End IIFE
 </script>
-{% endblock %}
 {% endblock %}
