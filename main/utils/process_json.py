@@ -4,170 +4,131 @@ import json
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+import django
+
+# Add the project root to the Python path
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
+
+# Set up Django environment
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+django.setup()
+
+# Set up logging
+logger = logging.getLogger("main.utils.process_json")
+
+# Ensure we have a console handler if running standalone
+if not logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(levelname)s %(message)s")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.INFO)
 
 # Define paths
-BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
 MEDIA_ROOT = BASE_DIR / "media"
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIRS = {
     "ocr": PLUMBING_CODE_DIR / "OCR",
     "json": PLUMBING_CODE_DIR / "json",
-    "json_final": PLUMBING_CODE_DIR / "json_final",
-    "json_processed": PLUMBING_CODE_DIR / "json_processed",
-    "original": PLUMBING_CODE_DIR / "original",
-    "optimizer": PLUMBING_CODE_DIR / "optimizer",
     "tables": PLUMBING_CODE_DIR / "tables",
-    "analytics": PLUMBING_CODE_DIR / "analytics",
     "text": PLUMBING_CODE_DIR / "text",
     "uploads": PLUMBING_CODE_DIR / "uploads",
 }
 
 
 def read_table_data(table_path: str) -> Optional[Dict]:
-    """Read and parse table data from file."""
+    """Read table data from a file."""
     try:
         if not os.path.exists(table_path):
+            logger.warning(f"Table file not found: {table_path}")
             return None
 
         with open(table_path, "r", encoding="utf-8") as f:
-            table_content = f.read()
-
-        return {
-            "table_content": table_content,
-            "table_path": table_path,
-        }
+            return json.load(f)
     except Exception as e:
-        logger.error(f"Error reading table data from {table_path}: {str(e)}")
+        logger.error(f"Error reading table data from {table_path}: {str(e)}", exc_info=True)
         return None
 
 
-def process_file(text_path: str) -> Dict:
-    """Process a single text file and its associated table data."""
+def process_file(input_file: str, output_dir: str) -> None:
+    """Process a single text file and save as JSON."""
     try:
-        # Read OCR text
-        with open(text_path, "r", encoding="utf-8") as f:
-            text_content = f.read()
+        logger.info(f"Processing file: {input_file}")
 
-        # Get filename without extension
-        filename = Path(text_path).stem
+        # Read the text file
+        with open(input_file, "r", encoding="utf-8") as f:
+            text = f.read()
+        logger.debug(f"Successfully read file: {input_file}")
 
-        # Extract page number from filename (e.g., NYCP1ch_9pg.txt -> 9)
-        try:
-            pg_num = int("".join(filter(str.isdigit, filename.split("_")[-1])))
-        except (IndexError, ValueError):
-            pg_num = 0
-            logger.warning(f"Could not extract page number from filename: {filename}")
-
-        # Check for associated table files
-        table_file = PLUMBING_CODE_DIRS["tables"] / f"{filename}.txt"
-
-        # Create file entry
-        file_entry = {
-            "i": pg_num,
-            "p": str(text_path),
-            "o": str(PLUMBING_CODE_DIRS["optimizer"] / f"{filename}.jpg"),
-            "pg": pg_num,
-            "t": text_content,
+        # Process the text into sections
+        sections = text.split("\n\n")
+        processed_data = {
+            "sections": sections,
+            "metadata": {
+                "source_file": os.path.basename(input_file),
+                "section_count": len(sections),
+            },
         }
+        logger.debug(f"Processed {len(sections)} sections")
 
-        # Add table data if exists
-        if table_file.exists():
-            table_data = read_table_data(str(table_file))
-            if table_data:
-                file_entry["tb"] = table_data["table_content"]
-                file_entry["tb_data"] = str(table_file)
+        # Create output filename
+        base_name = os.path.splitext(os.path.basename(input_file))[0]
+        output_file = os.path.join(output_dir, f"{base_name}.json")
 
-        return file_entry
+        # Save processed data
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(processed_data, f, indent=2)
 
-    except Exception as e:
-        logger.error(f"Error processing file {text_path}: {str(e)}")
-        raise
-
-
-def process_directory(base_dir: str) -> Dict[str, Dict]:
-    """Process all text files in the OCR directory."""
-    try:
-        processed_data = {}
-
-        # Process each text file in the OCR directory
-        for file_path in PLUMBING_CODE_DIRS["ocr"].glob("*.txt"):
-            try:
-                # Extract chapter number from filename (e.g., NYCP1CH -> 1)
-                chapter_match = re.search(r"NYCP(\d+)CH", file_path.stem, re.IGNORECASE)
-                if not chapter_match:
-                    logger.warning(
-                        f"Could not extract chapter number from filename: {file_path.name}"
-                    )
-                    continue
-
-                chapter_num = chapter_match.group(1)
-                chapter_key = f"NYCP{chapter_num}CH_"
-
-                # Initialize chapter data if not exists
-                if chapter_key not in processed_data:
-                    processed_data[chapter_key] = {
-                        "m": {
-                            "c": chapter_num,
-                            "t": "NYCPC",
-                            "ct": "",  # Will be filled from content
-                        },
-                        "f": [],
-                    }
-
-                # Process the file
-                file_entry = process_file(str(file_path))
-                processed_data[chapter_key]["f"].append(file_entry)
-
-            except Exception as e:
-                logger.error(f"Error processing {file_path}: {str(e)}")
-                continue
-
-        return processed_data
+        logger.info(f"Saved processed data to {output_file}")
 
     except Exception as e:
-        logger.error(f"Error processing directory: {str(e)}")
-        raise
-
-
-def save_json(data: Dict[str, Dict], output_dir: str) -> None:
-    """Save processed data to JSON files."""
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-
-        for filename, chapter_data in data.items():
-            output_file = os.path.join(output_dir, f"{filename}.json")
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(chapter_data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved processed data to {output_file}")
-
-    except Exception as e:
-        logger.error(f"Error saving JSON files: {str(e)}")
+        logger.error(f"Error processing file {input_file}: {str(e)}", exc_info=True)
         raise
 
 
 def main():
-    """Process all files and create JSON output."""
+    """Process all text files and convert to JSON format."""
     try:
-        # Process all files
-        processed_data = process_directory(str(PLUMBING_CODE_DIR))
+        logger.info("Starting JSON processing")
 
-        # Save to JSON files
-        save_json(processed_data, str(PLUMBING_CODE_DIRS["json"]))
+        # Setup directories
+        text_dir = PLUMBING_CODE_DIRS["text"]
+        json_dir = PLUMBING_CODE_DIRS["json"]
+        os.makedirs(json_dir, exist_ok=True)
 
-        logger.info("Successfully processed all files")
+        logger.info(f"Processing files from: {text_dir}")
+        logger.info(f"Output directory: {json_dir}")
+
+        # Process each text file
+        processed_count = 0
+        error_count = 0
+        for filename in os.listdir(text_dir):
+            if filename.endswith(".txt"):
+                input_file = os.path.join(text_dir, filename)
+                try:
+                    process_file(input_file, str(json_dir))
+                    processed_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to process {filename}: {str(e)}")
+                    error_count += 1
+                    continue
+
+        logger.info(f"Processing complete. Successful: {processed_count}, Failed: {error_count}")
 
     except Exception as e:
-        logger.error(f"Error in main process: {str(e)}")
+        logger.error(f"Error in main process: {str(e)}", exc_info=True)
         raise
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error("Fatal error in JSON processing", exc_info=True)
+        raise

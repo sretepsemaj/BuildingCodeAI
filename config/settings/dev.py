@@ -93,6 +93,14 @@ DEV_LOGGING = {
             "backupCount": 3,
             "level": "INFO",
         },
+        "json_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOGS_DIR / "process_json.log",
+            "formatter": "verbose",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 3,
+            "level": "INFO",
+        },
     },
     "loggers": {
         "main.utils.process_filename": {
@@ -102,6 +110,11 @@ DEV_LOGGING = {
         },
         "main.utils.process_ocr": {
             "handlers": ["console", "ocr_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_json": {
+            "handlers": ["console", "json_file"],
             "level": "INFO",
             "propagate": False,
         },
