@@ -101,6 +101,16 @@ DEV_LOGGING = {
             "backupCount": 3,
             "level": "INFO",
         },
+        "process_json_file": {
+            "class": "logging.FileHandler",
+            "filename": str(BASE_DIR / "logs" / "process_json.log"),
+            "formatter": "verbose",
+        },
+        "process_groq_file": {
+            "class": "logging.FileHandler",
+            "filename": str(BASE_DIR / "logs" / "process_groq.log"),
+            "formatter": "verbose",
+        },
     },
     "loggers": {
         "main.utils.process_filename": {
@@ -114,9 +124,14 @@ DEV_LOGGING = {
             "propagate": False,
         },
         "main.utils.process_json": {
-            "handlers": ["console", "json_file"],
-            "level": "INFO",
-            "propagate": False,
+            "handlers": ["console", "process_json_file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
+        "main.utils.process_groq": {
+            "handlers": ["console", "process_groq_file"],
+            "level": "DEBUG",
+            "propagate": True,
         },
     },
 }
