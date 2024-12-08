@@ -12,6 +12,7 @@ from .base import (
     DATABASES,
     DEBUG,
     INSTALLED_APPS,
+    LOGGING,
     MIDDLEWARE,
     STATIC_URL,
 )
@@ -58,57 +59,44 @@ if DEBUG:
 # URL Configuration
 ROOT_URLCONF = "config.urls"
 
+# Ensure logs directory exists
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
 # Development-specific logging
-LOGGING = {
+DEV_LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"},
+        "simple": {"format": "%(levelname)s %(message)s"},
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "simple",
+            "level": "INFO",
         },
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs/debug.log",
-            "formatter": "verbose",
-        },
-        "aws_file": {
+        "filename_file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": BASE_DIR / "logs/process_aws.log",
+            "filename": LOGS_DIR / "process_filename.log",
             "formatter": "verbose",
             "maxBytes": 10485760,  # 10MB
             "backupCount": 3,
-        },
-    },
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
+            "level": "INFO",
         },
     },
     "loggers": {
-        "django": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": True,
-        },
-        "django.db.backends": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "main.utils.process_aws": {
-            "handlers": ["console", "aws_file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "main.utils.process_start": {
-            "handlers": ["console"],
+        "main.utils.process_filename": {
+            "handlers": ["console", "filename_file"],
             "level": "INFO",
             "propagate": False,
         },
     },
 }
+
+# Use the development logging configuration
+LOGGING = DEV_LOGGING
 
 # Development-specific database settings
 DATABASES["default"].update(

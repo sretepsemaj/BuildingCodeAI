@@ -322,22 +322,6 @@ LOGGING = {
             "formatter": "simple",
             "level": "INFO",
         },
-        "file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "django.log",
-            "maxBytes": 10 * 1024 * 1024,  # 10MB
-            "backupCount": 5,
-            "formatter": "verbose",
-            "level": "INFO",
-        },
-        "image_processing": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "image_processing.log",
-            "maxBytes": 10 * 1024 * 1024,  # 10MB
-            "backupCount": 5,
-            "formatter": "verbose",
-            "level": "INFO",
-        },
         "mail_admins": {
             "class": "django.utils.log.AdminEmailHandler",
             "level": "ERROR",
@@ -347,17 +331,22 @@ LOGGING = {
     },
     "loggers": {
         "django": {
-            "handlers": ["console", "file", "mail_admins"],
+            "handlers": ["console", "mail_admins"],
             "level": "INFO",
             "propagate": True,
         },
         "main": {
-            "handlers": ["console", "file"],
+            "handlers": ["console"],
             "level": "INFO",
-            "propagate": True,
+            "propagate": False,
         },
-        "main.utils.process_image": {
-            "handlers": ["console", "image_processing"],
+        "main.utils": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_filename": {
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
