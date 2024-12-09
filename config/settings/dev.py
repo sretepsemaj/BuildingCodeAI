@@ -130,6 +130,12 @@ LOGGING = {
             "backupCount": 3,
             "level": "INFO",
         },
+        "images_optimizer": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": LOGS_DIR / "images_optimizer.log",
+            "formatter": "verbose",
+        },
     },
     "loggers": {
         "django": {
@@ -159,6 +165,11 @@ LOGGING = {
         },
         "main.utils.process_groq": {
             "handlers": ["console", "process_groq_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.images_optimizer": {
+            "handlers": ["console", "images_optimizer"],
             "level": "INFO",
             "propagate": False,
         },

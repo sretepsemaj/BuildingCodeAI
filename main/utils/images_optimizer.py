@@ -2,17 +2,29 @@
 """Image optimizer for processing original images into optimized versions."""
 
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import Tuple
 
-from PIL import Image
+# Add the project root to the Python path before importing Django
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
+
+# Django imports
+import django  # noqa: E402
+from django.conf import settings  # noqa: E402
+from PIL import Image  # noqa: E402
+
+# Set up Django environment
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+django.setup()
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("main.utils.images_optimizer")
 
 # Define paths
-BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(settings.MEDIA_ROOT)
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 ORIGINAL_DIR = PLUMBING_CODE_DIR / "original"
 OPTIMIZED_DIR = PLUMBING_CODE_DIR / "optimizer"  # Changed from 'optimized' to 'optimizer'
@@ -34,101 +46,95 @@ ALLOWED_EXTENSIONS = {
 
 def create_dirs() -> None:
     """Create necessary directories if they don't exist."""
+    logger.info("Creating necessary directories")
+    ORIGINAL_DIR.mkdir(parents=True, exist_ok=True)
     OPTIMIZED_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Ensured directory exists: {OPTIMIZED_DIR}")
+    logger.info(f"Original directory: {ORIGINAL_DIR}")
+    logger.info(f"Optimized directory: {OPTIMIZED_DIR}")
 
 
 def optimize_image(image: Image.Image, max_size: Tuple[int, int]) -> Image.Image:
     """Resize and optimize an image while maintaining aspect ratio."""
-    try:
-        # Convert to RGB if necessary
-        if image.mode not in ("RGB", "L"):
-            image = image.convert("RGB")
+    logger.debug(f"Original image size: {image.size}")
 
-        # Get original dimensions
-        orig_width, orig_height = image.size
+    # Calculate aspect ratio
+    width_ratio = max_size[0] / image.size[0]
+    height_ratio = max_size[1] / image.size[1]
+    ratio = min(width_ratio, height_ratio)
 
-        # Calculate new dimensions maintaining aspect ratio
-        width_ratio = max_size[0] / orig_width
-        height_ratio = max_size[1] / orig_height
-        ratio = min(width_ratio, height_ratio)
+    # Only resize if image is larger than max_size
+    if ratio < 1:
+        new_size = tuple(int(dim * ratio) for dim in image.size)
+        logger.info(f"Resizing image from {image.size} to {new_size}")
+        image = image.resize(new_size, Image.Resampling.LANCZOS)
+    else:
+        logger.info("Image is already within size limits, no resizing needed")
 
-        if ratio < 1:  # Only resize if image is larger than target size
-            new_size = (int(orig_width * ratio), int(orig_height * ratio))
-            image = image.resize(new_size, Image.Resampling.LANCZOS)
-            logger.info(
-                f"Resized image from {orig_width}x{orig_height} to {new_size[0]}x{new_size[1]}"
-            )
-        else:
-            logger.info(f"Image size {orig_width}x{orig_height} within limits, no resize needed")
-
-        return image
-    except Exception as e:
-        logger.error(f"Error optimizing image: {str(e)}")
-        raise
+    return image
 
 
 def process_image(input_path: Path) -> None:
     """Process a single image file."""
     try:
-        # Check if file extension is allowed
-        if input_path.suffix.lower() not in ALLOWED_EXTENSIONS:
-            logger.warning(f"Skipping unsupported file type {input_path.suffix}: {input_path}")
-            return
-
         logger.info(f"Processing image: {input_path}")
 
-        # Open the image
+        # Open and process image
         with Image.open(input_path) as img:
-            # Log original image info
-            logger.info(f"Original image: {input_path.name}, Mode: {img.mode}, Size: {img.size}")
+            # Convert RGBA to RGB if necessary
+            if img.mode == "RGBA":
+                logger.info("Converting RGBA image to RGB")
+                img = img.convert("RGB")
 
-            # Create optimized version for document viewing
+            # Optimize the image
             optimized = optimize_image(img, DOCUMENT_MAX_SIZE)
 
-            # Save optimized version
+            # Prepare output path
             output_path = OPTIMIZED_DIR / f"{input_path.stem}.jpg"
-            optimized.save(
-                output_path,
-                "JPEG",
-                quality=JPEG_QUALITY,
-                optimize=True,
-                progressive=True,  # Makes images load progressively in web browsers
-            )
-            logger.info(f"Saved optimized image: {output_path}")
+            logger.info(f"Saving optimized image to: {output_path}")
 
-    except (IOError, OSError) as e:
-        logger.error(f"File error processing {input_path}: {str(e)}")
-    except Image.DecompressionBombError:
-        logger.error(f"Image too large to process: {input_path}")
+            # Save optimized image
+            optimized.save(output_path, "JPEG", quality=JPEG_QUALITY, optimize=True)
+            logger.info(f"Successfully optimized image: {input_path.name}")
+
     except Exception as e:
-        logger.error(f"Unexpected error processing {input_path}: {str(e)}")
+        logger.error(f"Error processing image {input_path}: {str(e)}")
+        raise
 
 
 def main() -> None:
     """Main function to process all images in the original directory."""
     try:
+        logger.info("=" * 50)
         logger.info("Starting image optimization process")
         create_dirs()
 
-        # Process all images in original directory
-        files_processed = 0
-        files_skipped = 0
+        # Get list of images to process
+        image_files = list(ORIGINAL_DIR.glob("*"))
+        logger.info(f"Found {len(image_files)} images to process")
 
-        for file_path in ORIGINAL_DIR.glob("*"):
-            if file_path.suffix.lower() in ALLOWED_EXTENSIONS:
-                process_image(file_path)
-                files_processed += 1
+        successful = 0
+        failed = 0
+
+        # Process each image
+        for image_path in image_files:
+            if image_path.suffix.lower() in ALLOWED_EXTENSIONS:
+                try:
+                    process_image(image_path)
+                    successful += 1
+                except Exception as e:
+                    logger.error(f"Failed to process {image_path}: {str(e)}")
+                    failed += 1
             else:
-                files_skipped += 1
-                logger.info(f"Skipped non-image file: {file_path}")
+                logger.info(f"Skipped non-image file: {image_path}")
 
-        logger.info(
-            f"Image optimization complete. Processed: {files_processed}, Skipped: {files_skipped}"
-        )
+        logger.info("Image optimization complete")
+        logger.info(f"Successfully processed: {successful}")
+        logger.info(f"Failed to process: {failed}")
+        logger.info("=" * 50)
 
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":
