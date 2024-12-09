@@ -1,3 +1,5 @@
+"""Script to process images with OCR and detect tables."""
+
 import logging
 import os
 import re
@@ -7,11 +9,18 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Dict, List, Tuple
 
-import django
-import pytesseract
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
-from PIL import Image
+# Add the project root to the Python path before importing Django
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
+
+# Django imports
+import django  # noqa: E402
+
+# Third-party imports
+import pytesseract  # noqa: E402
+from django.conf import settings  # noqa: E402
+from django.core.exceptions import ImproperlyConfigured  # noqa: E402
+from PIL import Image  # noqa: E402
 
 # Set up Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
@@ -19,21 +28,6 @@ django.setup()
 
 # Get logger from Django's configuration
 logger = logging.getLogger("main.utils.process_ocr")
-
-
-def ensure_directories() -> Dict[str, str]:
-    """Return OCR processing directories from Django settings."""
-    if not hasattr(settings, "PLUMBING_CODE_PATHS"):
-        raise ImproperlyConfigured("PLUMBING_CODE_PATHS not found in settings")
-
-    paths = {k: str(v) for k, v in settings.PLUMBING_CODE_PATHS.items()}
-
-    # Create text directory if it doesn't exist
-    text_dir = os.path.join(os.path.dirname(paths["ocr"]), "text")
-    os.makedirs(text_dir, exist_ok=True)
-    paths["text"] = text_dir
-
-    return paths
 
 
 def analyze_text_patterns(text: str) -> Tuple[bool, float]:
@@ -89,72 +83,51 @@ def analyze_text_patterns(text: str) -> Tuple[bool, float]:
     return final_score > 0.3, final_score  # Threshold of 0.3 for table detection
 
 
-def process_tables(image_path: str, output_dir: str) -> Dict:
-    """Extract tables from image using text pattern analysis."""
+def process_tables(text: str, image_path: str, tables_dir: str) -> Dict:
+    """Extract tables from text using pattern analysis."""
     logger.info(f"Processing tables for image: {image_path}")
 
     try:
-        # Get text using OCR
-        text_data = pytesseract.image_to_string(image_path)
-        logger.info("Text extracted from image using OCR")
-
         # Analyze text patterns
-        is_table, confidence = analyze_text_patterns(text_data)
+        is_table, confidence = analyze_text_patterns(text)
 
         if not is_table:
-            logger.info(f"No table patterns detected (confidence: {confidence:.2f})")
+            logger.info("No table detected in the text")
             return {
                 "success": True,
                 "table_path": None,
                 "df_path": None,
-                "error": f"No table patterns detected (confidence: {confidence:.2f})",
+                "error": "No table detected",
+                "confidence": confidence,
             }
 
-        # If we detected a table, proceed with saving the data
-        image_name = os.path.splitext(os.path.basename(image_path))[0]
+        # Save table text to CSV
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        table_path = os.path.join(tables_dir, f"{base_name}.csv")
 
-        # Save the structured text
-        table_path = os.path.join(output_dir, f"{image_name}_table.txt")
+        # Convert text to CSV format
+        csv_lines = []
+        for line in text.split("\n"):
+            if line.strip():
+                # Replace multiple spaces with a single comma
+                csv_line = re.sub(r"\s{2,}", ",", line.strip())
+                csv_lines.append(csv_line)
+
+        # Write CSV file
         with open(table_path, "w", encoding="utf-8") as f:
-            f.write(text_data)
-        logger.info(f"Table text saved to: {table_path}")
+            f.write("\n".join(csv_lines))
 
-        # Try to extract structured data
-        try:
-            df_data = pytesseract.image_to_data(
-                image_path,
-                output_type=pytesseract.Output.DATAFRAME,
-                config="--psm 11",
-            )
-
-            if len(df_data) > 0 and not df_data.empty:
-                df_path = os.path.join(output_dir, f"{image_name}_data.csv")
-                df_data.to_csv(df_path, index=False)
-                logger.info(f"Structured data saved to: {df_path}")
-
-                return {
-                    "success": True,
-                    "table_path": table_path,
-                    "df_path": df_path,
-                    "error": None,
-                    "confidence": confidence,
-                }
-
-        except Exception as e:
-            logger.error(f"Error extracting structured data: {str(e)}", exc_info=True)
-            pass
-
-        logger.info(f"Table detected with confidence {confidence:.2f}")
+        logger.info(f"Table saved to CSV: {table_path}")
         return {
             "success": True,
             "table_path": table_path,
             "df_path": None,
-            "error": f"Table detected with confidence {confidence:.2f}",
+            "error": None,
             "confidence": confidence,
         }
 
     except Exception as e:
-        logger.error(f"Error processing tables: {str(e)}", exc_info=True)
+        logger.error(f"Error processing tables: {e}")
         return {
             "success": False,
             "table_path": None,
@@ -169,20 +142,22 @@ def process_image(image_path: str, output_path: str, tables_dir: str) -> Dict:
     logger.info(f"Processing image: {image_path}")
 
     try:
-        # Open and process image
+        # Extract text using OCR
         with Image.open(image_path) as img:
-            # Extract text using OCR
             text = pytesseract.image_to_string(img)
             logger.info("Text extracted from image using OCR")
 
             # Save OCR text
-            text_path = output_path.rsplit(".", 1)[0] + ".txt"
+            text_path = os.path.join(
+                settings.PLUMBING_CODE_PATHS["ocr"],
+                os.path.splitext(os.path.basename(image_path))[0] + ".txt",
+            )
             with open(text_path, "w", encoding="utf-8") as f:
                 f.write(text)
             logger.info(f"OCR text saved to: {text_path}")
 
-            # Process tables
-            table_result = process_tables(image_path, tables_dir)
+            # Process tables if text contains table-like patterns
+            table_result = process_tables(text, image_path, tables_dir)
 
             return {
                 "success": True,
@@ -190,8 +165,9 @@ def process_image(image_path: str, output_path: str, tables_dir: str) -> Dict:
                 "table_result": table_result,
                 "error": None,
             }
+
     except Exception as e:
-        logger.error(f"Error processing image: {str(e)}", exc_info=True)
+        logger.error(f"Error processing image: {e}")
         return {
             "success": False,
             "text_path": None,
@@ -201,113 +177,66 @@ def process_image(image_path: str, output_path: str, tables_dir: str) -> Dict:
 
 
 def main():
-    """Process images from uploads directory, save OCR results, and move originals."""
+    """Process images from uploads directory, save OCR results, and detect tables."""
     logger.info("Starting OCR processing")
 
-    # Setup directories
-    dirs = ensure_directories()
+    try:
+        # Get paths from Django settings
+        paths = settings.PLUMBING_CODE_PATHS
+        uploads_dir = paths["uploads"]
+        ocr_dir = paths["ocr"]
+        tables_dir = paths["tables"]
+        original_dir = paths["original"]
 
-    # Get list of files to process
-    files = [
-        f
-        for f in os.listdir(dirs["uploads"])
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp"))
-    ]
+        # Get list of image files to process
+        files = [
+            f
+            for f in os.listdir(uploads_dir)
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp"))
+        ]
+        logger.info(f"Found {len(files)} images to process")
 
-    results = {
-        "processed": [],
-        "failed": [],
-        "stats": {"total": len(files), "success": 0, "failed": 0},
-    }
+        # Process each file
+        successful = 0
+        failed = 0
 
-    # Process each file
-    for filename in files:
-        input_path = os.path.join(dirs["uploads"], filename)
-        output_path = os.path.join(dirs["ocr"], filename)
-        tables_dir = dirs["tables"]
+        for filename in files:
+            input_path = os.path.join(uploads_dir, filename)
+            output_path = os.path.join(ocr_dir, filename)
 
-        try:
-            # Process the image
-            result = process_image(input_path, output_path, tables_dir)
+            try:
+                # Process the image
+                result = process_image(input_path, output_path, tables_dir)
 
-            if result["success"]:
-                # Only copy to analytics if it contains a table
-                if result.get("table_result") and result["table_result"].get("table_path"):
-                    analytics_path = os.path.join(dirs["analytics"], filename)
-                    shutil.copy2(input_path, analytics_path)
-                    analytics_location = analytics_path
+                if result["success"]:
+                    # Move original to original directory
+                    original_path = os.path.join(original_dir, filename)
+                    shutil.move(input_path, original_path)
+                    logger.info(f"Moved original file to: {original_path}")
+
+                    # Log table detection results
+                    if result["table_result"]["table_path"]:
+                        logger.info(
+                            f"Table detected in {filename} "
+                            f"(confidence: {result['table_result']['confidence']:.2f})"
+                        )
+
+                    successful += 1
                 else:
-                    analytics_location = None
+                    logger.error(f"Failed to process {filename}: {result['error']}")
+                    failed += 1
 
-                # Move original to original directory
-                original_path = os.path.join(dirs["original"], filename)
-                shutil.move(input_path, original_path)
+            except Exception as e:
+                logger.error(f"Error processing {filename}: {e}")
+                failed += 1
+                continue
 
-                results["processed"].append(
-                    {
-                        "filename": filename,
-                        "text_path": result["text_path"],
-                        "table_result": result["table_result"],
-                        "analytics_path": analytics_location,
-                        "original_path": original_path,
-                    }
-                )
-                results["stats"]["success"] += 1
-            else:
-                results["failed"].append(
-                    {
-                        "filename": filename,
-                        "error": result["error"],
-                    }
-                )
-                results["stats"]["failed"] += 1
+        logger.info(f"OCR processing complete. Successful: {successful}, Failed: {failed}")
 
-        except Exception as e:
-            logger.error(f"Error processing file: {str(e)}", exc_info=True)
-            results["failed"].append(
-                {
-                    "filename": filename,
-                    "error": str(e),
-                }
-            )
-            results["stats"]["failed"] += 1
-
-    # Print summary
-    logger.info("\nProcessing Summary:")
-    logger.info(f"Total files: {results['stats']['total']}")
-    logger.info(f"Successfully processed: {results['stats']['success']}")
-    logger.info(f"Failed: {results['stats']['failed']}")
-
-    if results["processed"]:
-        logger.info("\nSuccessfully Processed Files:")
-        for item in results["processed"]:
-            logger.info(f"\nFile: {item['filename']}")
-            logger.info(f"OCR output: {item['text_path']}")
-            logger.info(f"Original moved to: {item['original_path']}")
-            if item["analytics_path"]:
-                logger.info(f"Table found - Analytics copy: {item['analytics_path']}")
-            if item["table_result"] and item["table_result"].get("table_path"):
-                logger.info(f"Table data: {item['table_result']['table_path']}")
-                if item["table_result"].get("df_path"):
-                    logger.info(f"Structured data: {item['table_result']['df_path']}")
-                logger.info(
-                    f"Table confidence: {item['table_result'].get('confidence', 'N/A'):.2f}"
-                )
-
-    if results["failed"]:
-        logger.info("\nFailed Files:")
-        for item in results["failed"]:
-            logger.info(f"\nFile: {item['filename']}")
-            logger.info(f"Error: {item['error']}")
-
-    return results
+    except Exception as e:
+        logger.error(f"Error in main process: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    try:
-        logger.info("Starting OCR processing script")
-        results = main()
-        logger.info("OCR processing completed successfully")
-    except Exception as e:
-        logger.error(f"Fatal error in OCR processing: {str(e)}", exc_info=True)
-        raise
+    main()
