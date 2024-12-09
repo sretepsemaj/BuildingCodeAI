@@ -93,7 +93,7 @@ DEV_LOGGING = {
             "backupCount": 3,
             "level": "INFO",
         },
-        "json_file": {
+        "process_json_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "filename": LOGS_DIR / "process_json.log",
             "formatter": "verbose",
@@ -101,15 +101,13 @@ DEV_LOGGING = {
             "backupCount": 3,
             "level": "INFO",
         },
-        "process_json_file": {
-            "class": "logging.FileHandler",
-            "filename": str(BASE_DIR / "logs" / "process_json.log"),
-            "formatter": "verbose",
-        },
         "process_groq_file": {
-            "class": "logging.FileHandler",
-            "filename": str(BASE_DIR / "logs" / "process_groq.log"),
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": LOGS_DIR / "process_groq.log",
             "formatter": "verbose",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 3,
+            "level": "INFO",
         },
     },
     "loggers": {
