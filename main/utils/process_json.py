@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import django
+from django.conf import settings
 
 # Add the project root to the Python path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -30,16 +31,8 @@ if not logger.handlers:
     logger.addHandler(console_handler)
     logger.setLevel(logging.INFO)
 
-# Define paths
-MEDIA_ROOT = BASE_DIR / "media"
-PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
-PLUMBING_CODE_DIRS = {
-    "ocr": PLUMBING_CODE_DIR / "OCR",
-    "json": PLUMBING_CODE_DIR / "json",
-    "tables": PLUMBING_CODE_DIR / "tables",
-    "text": PLUMBING_CODE_DIR / "text",
-    "uploads": PLUMBING_CODE_DIR / "uploads",
-}
+# Use paths from Django settings
+PLUMBING_CODE_PATHS = settings.PLUMBING_CODE_PATHS
 
 
 def read_table_data(table_path: str) -> Optional[Dict]:
@@ -94,36 +87,33 @@ def process_file(input_file: str, output_dir: str) -> None:
 
 def main():
     """Process all text files and convert to JSON format."""
+    logger.info("Starting JSON processing")
+
+    # Use OCR directory for input files since that's where the OCR output is stored
+    input_dir = str(PLUMBING_CODE_PATHS["ocr"])
+    output_dir = str(PLUMBING_CODE_PATHS["json"])
+
+    logger.info(f"Processing files from: {input_dir}")
+    logger.info(f"Output directory: {output_dir}")
+
+    successful = 0
+    failed = 0
+
     try:
-        logger.info("Starting JSON processing")
-
-        # Setup directories
-        text_dir = PLUMBING_CODE_DIRS["text"]
-        json_dir = PLUMBING_CODE_DIRS["json"]
-        os.makedirs(json_dir, exist_ok=True)
-
-        logger.info(f"Processing files from: {text_dir}")
-        logger.info(f"Output directory: {json_dir}")
-
-        # Process each text file
-        processed_count = 0
-        error_count = 0
-        for filename in os.listdir(text_dir):
-            if filename.endswith(".txt"):
-                input_file = os.path.join(text_dir, filename)
+        for filename in os.listdir(input_dir):
+            if filename.endswith(".txt"):  # Only process text files
+                input_file = os.path.join(input_dir, filename)
                 try:
-                    process_file(input_file, str(json_dir))
-                    processed_count += 1
+                    process_file(input_file, output_dir)
+                    successful += 1
                 except Exception as e:
-                    logger.error(f"Failed to process {filename}: {str(e)}")
-                    error_count += 1
-                    continue
-
-        logger.info(f"Processing complete. Successful: {processed_count}, Failed: {error_count}")
-
+                    logger.error(f"Error processing {filename}: {e}")
+                    failed += 1
     except Exception as e:
-        logger.error(f"Error in main process: {str(e)}", exc_info=True)
+        logger.error(f"Error in main process: {e}")
         raise
+
+    logger.info(f"Processing complete. Successful: {successful}, Failed: {failed}")
 
 
 if __name__ == "__main__":

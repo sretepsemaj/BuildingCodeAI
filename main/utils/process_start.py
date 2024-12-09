@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import importlib
 import logging
-import logging.handlers
 import os
 import sys
 import time
@@ -9,17 +8,20 @@ from pathlib import Path
 from typing import List, Optional
 
 import django
+from django.conf import settings
 
-# Add project root to Python path first
-project_root = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(project_root))
+# Set up Django environment first
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+django.setup()
+
+# Get logger from Django's configuration
+logger = logging.getLogger("main.utils.process_start")
 
 # Create logs directory if it doesn't exist
-logs_dir = project_root / "logs"
+logs_dir = Path(__file__).resolve().parent.parent.parent / "logs"
 logs_dir.mkdir(exist_ok=True)
 
-# Set up logging first, before Django setup
-logger = logging.getLogger("main.utils.process_start")
+# Set up logging
 logger.setLevel(logging.INFO)
 
 # Remove any existing handlers to avoid duplicates
@@ -44,12 +46,6 @@ logger.addHandler(file_handler)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
-
-# Now set up Django environment
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.base")
-django.setup()
-
-from django.conf import settings  # noqa: E402
 
 # List of processes to run in order
 PROCESS_ORDER = [

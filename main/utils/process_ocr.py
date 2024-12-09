@@ -9,43 +9,31 @@ from typing import Dict, List, Tuple
 
 import django
 import pytesseract
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from PIL import Image
-
-# Add the project root to the Python path
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(BASE_DIR))
 
 # Set up Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
 
-# Set up logging
+# Get logger from Django's configuration
 logger = logging.getLogger("main.utils.process_ocr")
 
-# Ensure we have a console handler if running standalone
-if not logger.handlers:
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(levelname)s %(message)s")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    logger.setLevel(logging.INFO)
 
+def ensure_directories() -> Dict[str, str]:
+    """Return OCR processing directories from Django settings."""
+    if not hasattr(settings, "PLUMBING_CODE_PATHS"):
+        raise ImproperlyConfigured("PLUMBING_CODE_PATHS not found in settings")
 
-def ensure_directories(base_dir: str) -> Dict[str, str]:
-    """Ensure all required directories exist."""
-    dirs = {
-        "uploads": os.path.join(base_dir, "uploads"),
-        "ocr": os.path.join(base_dir, "OCR"),
-        "original": os.path.join(base_dir, "original"),
-        "tables": os.path.join(base_dir, "tables"),
-        "analytics": os.path.join(base_dir, "analytics"),
-    }
+    paths = {k: str(v) for k, v in settings.PLUMBING_CODE_PATHS.items()}
 
-    for dir_path in dirs.values():
-        os.makedirs(dir_path, exist_ok=True)
+    # Create text directory if it doesn't exist
+    text_dir = os.path.join(os.path.dirname(paths["ocr"]), "text")
+    os.makedirs(text_dir, exist_ok=True)
+    paths["text"] = text_dir
 
-    return dirs
+    return paths
 
 
 def analyze_text_patterns(text: str) -> Tuple[bool, float]:
@@ -217,12 +205,7 @@ def main():
     logger.info("Starting OCR processing")
 
     # Setup directories
-    base_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "media",
-        "plumbing_code",
-    )
-    dirs = ensure_directories(base_dir)
+    dirs = ensure_directories()
 
     # Get list of files to process
     files = [

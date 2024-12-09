@@ -58,28 +58,8 @@ load_dotenv()
 # ------------------------------------------------------------------------------
 BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
 DEBUG: bool = False
-
-
-# SECURITY CONFIGURATION
-# ------------------------------------------------------------------------------
-def generate_secret_key() -> None:
-    """Generate a secure secret key."""
-    if not os.path.exists(".env"):
-        with open(".env", "a") as f:
-            f.write(f'SECRET_KEY="{get_random_secret_key()}"\n')
-
-
-def get_secret_key() -> str:
-    """Get or generate the secret key."""
-    secret_key = get_env_value("SECRET_KEY")
-    if not secret_key:
-        generate_secret_key()
-        secret_key = get_env_value("SECRET_KEY")
-    return str(secret_key)
-
-
-SECRET_KEY: str = get_secret_key()
-ALLOWED_HOSTS: List[str] = []
+ROOT_URLCONF: str = "config.urls"
+WSGI_APPLICATION: str = "config.wsgi.application"
 
 # APPLICATION CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -115,94 +95,44 @@ MIDDLEWARE: List[str] = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# LOGGING CONFIGURATION
+
+# SECURITY CONFIGURATION
 # ------------------------------------------------------------------------------
-LOGS_DIR: Path = BASE_DIR / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+def generate_secret_key() -> None:
+    """Generate a secure secret key."""
+    if not os.path.exists(".env"):
+        with open(".env", "a") as f:
+            f.write(f'SECRET_KEY="{get_random_secret_key()}"\n')
 
-LOGGING: Dict[str, Any] = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-        },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "INFO",
-            "propagate": True,
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "INFO",
-    },
-}
 
-# DATABASE CONFIGURATION
+def get_secret_key() -> str:
+    """Get or generate the secret key."""
+    secret_key = get_env_value("SECRET_KEY")
+    if not secret_key:
+        generate_secret_key()
+        secret_key = get_env_value("SECRET_KEY")
+    return str(secret_key)
+
+
+SECRET_KEY: str = get_secret_key()
+ALLOWED_HOSTS: List[str] = []
+
+# MEDIA CONFIGURATION
 # ------------------------------------------------------------------------------
-DATABASES: Dict[str, Dict[str, Any]] = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
-
-
-# API CONFIGURATION
-# ------------------------------------------------------------------------------
-def get_api_url(name: str, default: str) -> str:
-    """Get an API URL with validation."""
-    url = get_env_value(f"{name}_API_URL", default)
-    if not url:
-        raise ImproperlyConfigured(f"{name}_API_URL is required")
-    return str(url)
-
-
-API_URLS: Dict[str, str] = {
-    "HUGG": get_api_url(
-        "HUGG", "https://api-inference.huggingface.co/models/microsoft/speecht5_tts"
-    ),
-}
-
-# AWS CONFIGURATION
-# ------------------------------------------------------------------------------
-AWS: Dict[str, Any] = {
-    "AWS_ACCESS_KEY_ID": get_env_value("AWS_ACCESS_KEY_ID", default=""),
-    "AWS_SECRET_ACCESS_KEY": get_env_value("AWS_SECRET_ACCESS_KEY", default=""),
-    "AWS_STORAGE_BUCKET_NAME": get_env_value("AWS_STORAGE_BUCKET_NAME", default=""),
-    "AWS_S3_REGION_NAME": get_env_value("AWS_S3_REGION_NAME", "us-east-1"),
-}
-
-AWS_RESOURCES: Dict[str, str] = {
-    "BUCKET_NAME": (
-        AWS["AWS_STORAGE_BUCKET_NAME"] if AWS["AWS_STORAGE_BUCKET_NAME"] else "default-bucket"
-    ),
-    "REGION_NAME": AWS["AWS_S3_REGION_NAME"],
-}
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "media/"
 
 # STATIC FILES CONFIGURATION
 # ------------------------------------------------------------------------------
 STATIC_URL: str = "static/"
-STATIC_ROOT: Path = BASE_DIR / "staticfiles"
-MEDIA_URL: str = "media/"
-MEDIA_ROOT: Path = BASE_DIR / "media"
+STATICFILES_DIRS: List[Path] = []
 
 # TEMPLATES CONFIGURATION
 # ------------------------------------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [],  # Let each environment specify template dirs
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -218,23 +148,6 @@ TEMPLATES = [
 # INTERNATIONALIZATION CONFIGURATION
 # ------------------------------------------------------------------------------
 LANGUAGE_CODE: str = "en-us"
-TIME_ZONE: str = "UTC"
+TIME_ZONE: str = "America/New_York"
 USE_I18N: bool = True
 USE_TZ: bool = True
-
-# AUTHENTICATION CONFIGURATION
-# ------------------------------------------------------------------------------
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
-    },
-    {
-        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
-    },
-]
