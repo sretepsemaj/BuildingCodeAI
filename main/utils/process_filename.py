@@ -1,11 +1,13 @@
+"""Script to rename uploaded files to NYCP format."""
+
 import logging
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
 import django
+from django.conf import settings
 
 # Add the project root to the Python path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -15,34 +17,8 @@ sys.path.append(str(BASE_DIR))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
 
-# Set up logging
+# Set up logging using Django's configuration
 logger = logging.getLogger("main.utils.process_filename")
-
-# Ensure we have a console handler if running standalone
-if not logger.handlers:
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(levelname)s %(message)s")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    logger.setLevel(logging.INFO)
-
-# Define base directories
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MEDIA_ROOT = BASE_DIR / "media"
-PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
-PLUMBING_CODE_DIRS = {
-    "ocr": PLUMBING_CODE_DIR / "OCR",
-    "optimizer": PLUMBING_CODE_DIR / "optimizer",
-    "embeddings": PLUMBING_CODE_DIR / "embeddings",
-    "json": PLUMBING_CODE_DIR / "json",
-    "json_final": PLUMBING_CODE_DIR / "json_final",
-    "json_processed": PLUMBING_CODE_DIR / "json_processed",
-    "original": PLUMBING_CODE_DIR / "original",
-    "tables": PLUMBING_CODE_DIR / "tables",
-    "text": PLUMBING_CODE_DIR / "text",
-    "uploads": PLUMBING_CODE_DIR / "uploads",
-}
 
 
 def extract_chapter_page(filename: str) -> tuple:
@@ -70,26 +46,28 @@ def generate_nycp_name(chapter: str, page: str, ext: str) -> str:
     return f"NYCP{chapter}ch_{page}pg{ext}"
 
 
-def rename_files(directory: str) -> None:
-    """Rename files in the specified directory to NYCP format."""
-    logger.info(f"Starting file renaming in directory: {directory}")
+def rename_files() -> None:
+    """Rename files in the uploads directory to NYCP format."""
+    uploads_dir = settings.PLUMBING_CODE_PATHS["uploads"]
+    logger.info(f"Starting file renaming in directory: {uploads_dir}")
 
     try:
         # Create directory if it doesn't exist
-        os.makedirs(directory, exist_ok=True)
+        os.makedirs(uploads_dir, exist_ok=True)
+        logger.info(f"Uploads directory ensured: {uploads_dir}")
 
         # Get list of files in directory (excluding hidden files)
         files = [
             f
-            for f in os.listdir(directory)
-            if not f.startswith(".") and os.path.isfile(os.path.join(directory, f))
+            for f in os.listdir(uploads_dir)
+            if not f.startswith(".") and os.path.isfile(os.path.join(uploads_dir, f))
         ]
         logger.info(f"Found {len(files)} files to process")
 
         for filename in files:
             try:
                 logger.info(f"Processing file: {filename}")
-                filepath = os.path.join(directory, filename)
+                filepath = os.path.join(uploads_dir, filename)
 
                 # Extract chapter and page numbers
                 chapter, page = extract_chapter_page(filename)
@@ -99,45 +77,37 @@ def rename_files(directory: str) -> None:
 
                 # Generate new filename
                 ext = os.path.splitext(filename)[1]
-                new_name = generate_nycp_name(chapter, page, ext)
-                new_filepath = os.path.join(directory, new_name)
+                new_filename = generate_nycp_name(chapter, page, ext)
+                new_filepath = os.path.join(uploads_dir, new_filename)
 
                 # Rename file
-                shutil.move(filepath, new_filepath)
-                logger.info(f"Renamed {filename} to {new_name}")
+                if filename != new_filename:
+                    os.rename(filepath, new_filepath)
+                    logger.info(f"Renamed {filename} to {new_filename}")
+                else:
+                    logger.info(f"File already in correct format: {filename}")
 
             except Exception as e:
-                logger.error(f"Error processing file {filename}: {str(e)}", exc_info=True)
+                logger.error(f"Error processing file {filename}: {e}")
                 continue
 
         logger.info("File renaming completed successfully")
 
     except Exception as e:
-        logger.error(f"Error during file renaming: {str(e)}", exc_info=True)
+        logger.error(f"Error in rename_files: {e}")
         raise
 
 
 def main():
     """Main function to run the renaming process."""
-    logger.info("Starting file renaming process")
-
     try:
-        # Ensure uploads directory exists
-        uploads_dir = PLUMBING_CODE_DIRS["uploads"]
-        os.makedirs(uploads_dir, exist_ok=True)
-        logger.info(f"Uploads directory ensured: {uploads_dir}")
-
-        # Process files in uploads directory
-        rename_files(uploads_dir)
+        logger.info("Starting file renaming process")
+        rename_files()
         logger.info("File renaming process completed successfully")
-
     except Exception as e:
-        logger.error(f"Error in main process: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Error in main process: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-    print(
-        "\nTo use with a specific directory, modify script to pass directory path to rename_files()"
-    )
