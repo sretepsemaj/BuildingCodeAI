@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Script to process text files and tables into JSON format."""
 
 import json
@@ -8,117 +9,128 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import django
-from django.conf import settings
-
-# Add the project root to the Python path
+# Add the project root to the Python path before importing Django
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
+
+# Django imports
+import django  # noqa: E402
+from django.conf import settings  # noqa: E402
 
 # Set up Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
 
-# Set up logging
+# Configure logger
 logger = logging.getLogger("main.utils.process_json")
 
-# Ensure we have a console handler if running standalone
-if not logger.handlers:
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(levelname)s %(message)s")
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    logger.setLevel(logging.INFO)
 
-# Use paths from Django settings
-PLUMBING_CODE_PATHS = settings.PLUMBING_CODE_PATHS
-
-
-def read_table_data(table_path: str) -> Optional[Dict]:
+def read_table_data(table_path: Path) -> Optional[Dict]:
     """Read table data from a file."""
     try:
-        if not os.path.exists(table_path):
+        if not table_path.exists():
             logger.warning(f"Table file not found: {table_path}")
             return None
 
+        logger.info(f"Reading table data from: {table_path}")
         with open(table_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        logger.debug(f"Successfully loaded table data from {table_path}")
+        return data
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in table file {table_path}: {str(e)}")
+        return None
     except Exception as e:
-        logger.error(f"Error reading table data from {table_path}: {str(e)}", exc_info=True)
+        logger.error(f"Error reading table file {table_path}: {str(e)}")
         return None
 
 
-def process_file(input_file: str, output_dir: str) -> None:
+def process_file(input_file: Path, output_dir: Path) -> bool:
     """Process a single text file and save as JSON."""
     try:
         logger.info(f"Processing file: {input_file}")
 
-        # Read the text file
+        # Read the input file
         with open(input_file, "r", encoding="utf-8") as f:
-            text = f.read()
-        logger.debug(f"Successfully read file: {input_file}")
+            content = f.read()
 
-        # Process the text into sections
-        sections = text.split("\n\n")
-        processed_data = {
-            "sections": sections,
+        # Extract filename without extension
+        base_name = input_file.stem
+
+        # Look for associated table file
+        table_path = Path(str(input_file).replace(".txt", "_table.json"))
+        table_data = read_table_data(table_path) if table_path.exists() else None
+
+        # Create JSON structure
+        data = {
+            "filename": input_file.name,
+            "content": content,
+            "tables": table_data,
             "metadata": {
-                "source_file": os.path.basename(input_file),
-                "section_count": len(sections),
+                "processed_date": settings.CURRENT_TIME,
+                "version": "1.0",
             },
         }
-        logger.debug(f"Processed {len(sections)} sections")
 
-        # Create output filename
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_file = os.path.join(output_dir, f"{base_name}.json")
+        # Create output directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save processed data
+        # Save as JSON
+        output_file = output_dir / f"{base_name}.json"
+        logger.info(f"Saving JSON to: {output_file}")
+
         with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(processed_data, f, indent=2)
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Saved processed data to {output_file}")
+        logger.info(f"Successfully processed: {input_file.name}")
+        return True
 
     except Exception as e:
-        logger.error(f"Error processing file {input_file}: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Error processing file {input_file}: {str(e)}")
+        return False
 
 
-def main():
+def main() -> bool:
     """Process all text files and convert to JSON format."""
-    logger.info("Starting JSON processing")
-
-    # Use OCR directory for input files since that's where the OCR output is stored
-    input_dir = str(PLUMBING_CODE_PATHS["ocr"])
-    output_dir = str(PLUMBING_CODE_PATHS["json"])
-
-    logger.info(f"Processing files from: {input_dir}")
-    logger.info(f"Output directory: {output_dir}")
-
-    successful = 0
-    failed = 0
-
     try:
-        for filename in os.listdir(input_dir):
-            if filename.endswith(".txt"):  # Only process text files
-                input_file = os.path.join(input_dir, filename)
-                try:
-                    process_file(input_file, output_dir)
-                    successful += 1
-                except Exception as e:
-                    logger.error(f"Error processing {filename}: {e}")
-                    failed += 1
-    except Exception as e:
-        logger.error(f"Error in main process: {e}")
-        raise
+        logger.info("=" * 50)
+        logger.info("Starting JSON processing")
 
-    logger.info(f"Processing complete. Successful: {successful}, Failed: {failed}")
+        # Get paths from Django settings
+        ocr_dir = Path(settings.PLUMBING_CODE_PATHS["ocr"])
+        json_dir = Path(settings.PLUMBING_CODE_PATHS["json"])
+
+        # Create output directory if it doesn't exist
+        json_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Input directory: {ocr_dir}")
+        logger.info(f"Output directory: {json_dir}")
+
+        # Get list of text files to process
+        text_files = list(ocr_dir.glob("*.txt"))
+        logger.info(f"Found {len(text_files)} text files to process")
+
+        successful = 0
+        failed = 0
+
+        # Process each file
+        for text_file in text_files:
+            if process_file(text_file, json_dir):
+                successful += 1
+            else:
+                failed += 1
+
+        logger.info("JSON processing complete")
+        logger.info(f"Successfully processed: {successful}")
+        logger.info(f"Failed to process: {failed}")
+        logger.info("=" * 50)
+
+        return successful > 0 or len(text_files) == 0
+
+    except Exception as e:
+        logger.error(f"Error in main process: {str(e)}")
+        return False
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.error("Fatal error in JSON processing", exc_info=True)
-        raise
+    main()

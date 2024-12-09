@@ -74,7 +74,6 @@ LOGGING = {
         "verbose": {
             "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
             "style": "{",
-            "datefmt": "%Y-%m-%d %H:%M:%S",
         },
     },
     "handlers": {
@@ -82,53 +81,23 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
-        "process_ocr_file": {
-            "class": "logging.handlers.RotatingFileHandler",
+        "process_ocr": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
             "filename": LOGS_DIR / "process_ocr.log",
             "formatter": "verbose",
-            "maxBytes": 10485760,  # 10MB
-            "backupCount": 3,
-            "level": "INFO",
         },
-        "process_json_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "process_json.log",
-            "formatter": "verbose",
-            "maxBytes": 10485760,
-            "backupCount": 3,
+        "process_filename": {
             "level": "INFO",
-        },
-        "process_start_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "process_start.log",
-            "formatter": "verbose",
-            "maxBytes": 10485760,
-            "backupCount": 3,
-            "level": "INFO",
-        },
-        "process_filename_file": {
-            "class": "logging.handlers.RotatingFileHandler",
+            "class": "logging.FileHandler",
             "filename": LOGS_DIR / "process_filename.log",
             "formatter": "verbose",
-            "maxBytes": 10485760,
-            "backupCount": 3,
-            "level": "INFO",
         },
-        "process_groq_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "process_groq.log",
-            "formatter": "verbose",
-            "maxBytes": 10485760,
-            "backupCount": 3,
+        "process_image": {
             "level": "INFO",
-        },
-        "django_file": {
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": LOGS_DIR / "django.log",
+            "class": "logging.FileHandler",
+            "filename": LOGS_DIR / "process_image.log",
             "formatter": "verbose",
-            "maxBytes": 10485760,
-            "backupCount": 3,
-            "level": "INFO",
         },
         "images_optimizer": {
             "level": "INFO",
@@ -136,40 +105,41 @@ LOGGING = {
             "filename": LOGS_DIR / "images_optimizer.log",
             "formatter": "verbose",
         },
+        "process_json": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": LOGS_DIR / "process_json.log",
+            "formatter": "verbose",
+        },
     },
     "loggers": {
         "django": {
-            "handlers": ["console", "django_file"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": True,
         },
         "main.utils.process_ocr": {
-            "handlers": ["console", "process_ocr_file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "main.utils.process_json": {
-            "handlers": ["console", "process_json_file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "main.utils.process_start": {
-            "handlers": ["console", "process_start_file"],
+            "handlers": ["console", "process_ocr"],
             "level": "INFO",
             "propagate": False,
         },
         "main.utils.process_filename": {
-            "handlers": ["console", "process_filename_file"],
+            "handlers": ["console", "process_filename"],
             "level": "INFO",
             "propagate": False,
         },
-        "main.utils.process_groq": {
-            "handlers": ["console", "process_groq_file"],
+        "main.utils.process_image": {
+            "handlers": ["console", "process_image"],
             "level": "INFO",
             "propagate": False,
         },
         "main.utils.images_optimizer": {
             "handlers": ["console", "images_optimizer"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_json": {
+            "handlers": ["console", "process_json"],
             "level": "INFO",
             "propagate": False,
         },
