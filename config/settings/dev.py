@@ -110,6 +110,7 @@ LOGGING = {
             "class": "logging.FileHandler",
             "filename": LOGS_DIR / "process_json.log",
             "formatter": "verbose",
+            "mode": "a",  # Append mode
         },
     },
     "loggers": {

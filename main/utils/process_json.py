@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -23,6 +24,22 @@ django.setup()
 
 # Configure logger
 logger = logging.getLogger("main.utils.process_json")
+
+# Ensure logs directory exists
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Add file handler if not already present
+if not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers):
+    log_file = LOGS_DIR / "process_json.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(
+        logging.Formatter(
+            "{levelname} {asctime} {module} {process:d} {thread:d} {message}", style="{"
+        )
+    )
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.INFO)
 
 
 def read_table_data(table_path: Path) -> Optional[Dict]:
@@ -68,7 +85,7 @@ def process_file(input_file: Path, output_dir: Path) -> bool:
             "content": content,
             "tables": table_data,
             "metadata": {
-                "processed_date": settings.CURRENT_TIME,
+                "processed_date": datetime.now().isoformat(),
                 "version": "1.0",
             },
         }
