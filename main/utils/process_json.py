@@ -51,10 +51,10 @@ def extract_chapter_info(filename: str) -> Tuple[str, str]:
     return "", ""
 
 
-def find_matching_table(file_entry: Dict, tables_dir: Path) -> Optional[Path]:
+def find_matching_table(file_entry: Dict, chapter_num: str, tables_dir: Path) -> Optional[Path]:
     """Find matching table file for a given file entry."""
     # Get all table files in the directory
-    table_files = list(tables_dir.glob("*.csv"))
+    table_files = list(tables_dir.glob(f"NYCP{chapter_num}ch_*pg.csv"))
 
     # Extract page number from the file entry
     page_num = file_entry.get("i", 1)
@@ -62,7 +62,7 @@ def find_matching_table(file_entry: Dict, tables_dir: Path) -> Optional[Path]:
     # Try to find a matching table file
     for table_file in table_files:
         # Extract page number from table filename
-        table_match = re.search(r"_(\d+)pg\.csv$", table_file.name)
+        table_match = re.search(rf"NYCP{chapter_num}ch_(\d+)pg\.csv$", table_file.name)
         if table_match:
             table_page = int(table_match.group(1))
             if table_page == page_num:
@@ -117,16 +117,18 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
                     "t": content,
                 }
 
-                # Find matching table file
-                table_file = find_matching_table(file_data, tables_dir)
+                # Find matching table file using both chapter and page number
+                table_file = find_matching_table(file_data, chapter, tables_dir)
                 file_data["p"] = str(table_file) if table_file else None
 
                 files_data.append(file_data)
                 logger.info(f"Successfully processed: {input_file.name}")
                 if table_file:
-                    logger.info(f"Found matching table file: {table_file.name}")
+                    logger.info(f"Found matching table file: {table_file.name} for page {page_num}")
                 else:
-                    logger.info("No matching table file found")
+                    logger.info(
+                        f"No matching table file found for chapter {chapter}, page {page_num}"
+                    )
 
             except Exception as e:
                 logger.error(f"Error processing file {input_file}: {str(e)}")
