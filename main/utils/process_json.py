@@ -51,6 +51,13 @@ def extract_chapter_info(filename: str) -> Tuple[str, str]:
     return "", ""
 
 
+def find_table_file(chapter_num: str, tables_dir: Path) -> Optional[Path]:
+    """Find corresponding table file in tables directory."""
+    pattern = f"NYCP{chapter_num}ch_*pg.csv"
+    table_files = list(tables_dir.glob(pattern))
+    return table_files[0] if table_files else None
+
+
 def process_files(input_files: List[Path], output_dir: Path) -> bool:
     """Process multiple text files and save as single JSON."""
     try:
@@ -60,6 +67,10 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
 
         # Extract chapter info from first file
         chapter, doc_type = extract_chapter_info(input_files[0].name)
+
+        # Get tables directory
+        tables_dir = Path(settings.PLUMBING_CODE_PATHS["tables"])
+        table_file = find_table_file(chapter, tables_dir) if chapter else None
 
         # Create files array
         files_data = []
@@ -81,10 +92,9 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
                 )
 
                 file_data = {
-                    "i": i,
-                    "p": str(input_file),
+                    "i": page_num,  # Use extracted page number
+                    "p": str(table_file) if table_file else None,  # Set table file path or None
                     "o": optimizer_path,
-                    "pg": page_num,
                     "t": content,
                 }
                 files_data.append(file_data)
