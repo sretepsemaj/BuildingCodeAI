@@ -24,8 +24,14 @@ root_path = str(Path(__file__).parent.parent.parent)
 if root_path not in sys.path:
     sys.path.append(root_path)
 
-# Local imports
-from config.settings.base import BASE_DIR, MEDIA_ROOT, PLUMBING_CODE_DIR  # noqa: E402
+# Configure Django settings
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+import django  # noqa: E402
+
+django.setup()
+
+# Get paths from settings
+PLUMBING_CODE_DIR = settings.MEDIA_ROOT / "plumbing_code"
 
 # Set up logging
 logger = logging.getLogger(__name__)

@@ -1,157 +1,151 @@
-"""Script to process images in JSON files using Groq API."""
+#!/usr/bin/env python3
+"""Script to process images using Groq AI and update JSON files."""
 
 import json
 import logging
 import os
-import shutil
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-# Add the project root to the Python path
-root_path = str(Path(__file__).parent.parent.parent)
-if root_path not in sys.path:
-    sys.path.append(root_path)
+# Add project root to Python path
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
 
-import django  # noqa: E402
-from django.conf import settings  # noqa: E402
-
-# Initialize Django
+# Configure Django settings first
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+import django  # noqa: E402
+
 django.setup()
 
-from config.settings.base import BASE_DIR, MEDIA_ROOT, PLUMBING_CODE_DIR  # noqa: E402
+# Import Django settings and other dependencies
+from django.conf import settings  # noqa: E402
+
 from main.utils.image_groq import GroqImageProcessor  # noqa: E402
 
-# Set up logging
+# Configure logger after Django setup
 logger = logging.getLogger("main.utils.process_groq")
 
+# Groq API configuration
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY environment variable is required")
 
-# Define additional paths
-JSON_PROCESSED_DIR = PLUMBING_CODE_DIR / "json_processed"
-JSON_FINAL_DIR = PLUMBING_CODE_DIR / "json_final"
+# Initialize Groq processor
+groq_processor = GroqImageProcessor()
 
 
-def process_json_file(json_path: str) -> None:
-    """Process a JSON file and add Groq analysis results.
-
-    Args:
-        json_path: Path to the JSON file to process
-    """
-    logger.info(f"Starting to process JSON file: {json_path}")
+def analyze_image_with_groq(image_path: str) -> Optional[str]:
+    """Analyze image using Groq AI API."""
     try:
+        logger.info(f"Analyzing image: {image_path}")
+
+        # Process the image using GroqImageProcessor
+        result = groq_processor.process_image(image_path)
+        if result:
+            # Extract relevant information from the result
+            analysis = result.get("analysis", "No analysis available")
+            return analysis
+
+        return None
+
+    except Exception as e:
+        logger.error(f"Error analyzing image {image_path}: {str(e)}")
+        return None
+
+
+def process_json_file(json_file: Path) -> bool:
+    """Process a single JSON file and update with Groq analysis."""
+    try:
+        logger.info(f"Processing JSON file: {json_file}")
+
         # Read the JSON file
-        logger.debug(f"Reading JSON file: {json_path}")
-        with open(json_path, "r") as f:
+        with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Initialize Groq processor
-        logger.debug("Initializing Groq processor")
-        processor = GroqImageProcessor()
+        modified = False
 
-        # Track if any changes were made
-        changes_made = False
-        has_valid_fields = False
-
-        # Process fields at root level
-        logger.debug("Processing fields at root level")
-        for field in data.get("f", []):
-            # Only process fields that have a CSV file (p is not null)
-            if not field.get("p"):
+        # Process each file entry
+        for file_entry in data.get("f", []):
+            # Skip entries without table path
+            if not file_entry.get("p"):
+                logger.debug(f"Skipping entry {file_entry.get('i')}: no table path")
                 continue
 
-            has_valid_fields = True
-            logger.debug(f"Processing field with path: {field.get('p')}")
-
-            # Look for image path in 'o' field
-            image_path = field.get("o", "")
-            if not image_path or not image_path.endswith(".jpg"):
+            # Get the image path from 'o' field
+            image_path = file_entry.get("o")
+            if not image_path:
+                logger.warning(f"No image path for entry {file_entry.get('i')}")
                 continue
 
             # Check if image exists
-            if not os.path.exists(image_path):
+            if not Path(image_path).exists():
                 logger.warning(f"Image not found: {image_path}")
                 continue
 
-            logger.info(f"Processing image for CSV file {field['p']}: {image_path}")
+            # Analyze image with Groq
+            analysis = analyze_image_with_groq(image_path)
+            if analysis:
+                # Update the text content
+                file_entry["t"] = analysis
+                modified = True
+                logger.info(f"Updated entry {file_entry.get('i')} with Groq analysis")
 
-            try:
-                # Process the image with Groq
-                result = processor.process_image(image_path)
+        # Create output filename with _groq suffix in json_final directory
+        output_dir = Path(settings.PLUMBING_CODE_PATHS["json_final"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_file = output_dir / f"{json_file.stem}_groq.json"
 
-                if result and "error" not in result:
-                    # Update the 't' field with Groq analysis
-                    field["t"] = result.get("raw_response", "")
-                    changes_made = True
-                    logger.info(f"Successfully processed image: {image_path}")
-                else:
-                    logger.error(f"Error in Groq response for {image_path}: {result}")
+        # Save the file (whether modified or not)
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
-            except Exception as e:
-                logger.error(f"Error processing image {image_path}: {str(e)}")
-                continue
-
-        # Get the output path
-        output_path = (
-            str(json_path)
-            .replace("/json_processed/", "/json_final/")
-            .replace(".json", "_groq.json")
-        )
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
-        if changes_made:
-            # Save the updated JSON with changes
-            with open(output_path, "w") as f:
-                json.dump(data, f, indent=2)
-            logger.info(f"Successfully saved results to {output_path}")
-        elif not has_valid_fields:
-            # If no valid fields were found, just copy the original file
-            shutil.copy2(json_path, output_path)
-            logger.info(f"No valid fields found, copied original file to {output_path}")
+        if modified:
+            logger.info(f"Successfully saved results to {output_file}")
         else:
-            # If there were valid fields but no changes made, still save the file
-            with open(output_path, "w") as f:
-                json.dump(data, f, indent=2)
-            logger.info(f"No changes made, saved original data to {output_path}")
+            logger.info(f"No changes needed, copied original file to {output_file}")
+
+        return True
 
     except Exception as e:
-        logger.error(f"Error processing JSON file {json_path}: {str(e)}")
-        raise
+        logger.error(f"Error processing JSON file {json_file}: {str(e)}")
+        return False
 
 
-def process_all_json_files() -> None:
-    """Process all JSON files in the processed directory."""
-    logger.info(f"Starting to process all JSON files in: {JSON_PROCESSED_DIR}")
-
-    # Create final directory if it doesn't exist
-    if not JSON_FINAL_DIR.exists():
-        logger.debug(f"Creating final directory: {JSON_FINAL_DIR}")
-        JSON_FINAL_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Get list of JSON files
-    json_files = list(JSON_PROCESSED_DIR.glob("*.json"))
-    logger.info(f"Found {len(json_files)} JSON files to process")
-
-    # Process each file
-    for json_path in json_files:
-        try:
-            logger.debug(f"Processing file: {json_path}")
-            process_json_file(str(json_path))
-        except Exception as e:
-            logger.error(f"Error processing {json_path}: {str(e)}", exc_info=True)
-
-    logger.info("Finished processing all JSON files")
-
-
-def main() -> None:
-    """Main function to process all JSON files."""
-    logger.info("Starting Groq processing")
+def main() -> bool:
+    """Process all JSON files with Groq analysis."""
     try:
-        process_all_json_files()
-        logger.info("Groq processing completed successfully")
+        logger.info("=" * 50)
+        logger.info("Starting Groq processing")
+
+        # Get paths from Django settings
+        json_dir = Path(settings.PLUMBING_CODE_PATHS["json_processed"])
+        logger.info(f"JSON directory: {json_dir}")
+
+        # Get list of JSON files to process
+        json_files = list(json_dir.glob("NYCP*CH.json"))
+        logger.info(f"Found {len(json_files)} JSON files to process")
+
+        successful = 0
+        failed = 0
+
+        # Process each JSON file
+        for json_file in json_files:
+            if process_json_file(json_file):
+                successful += 1
+            else:
+                failed += 1
+
+        logger.info("Groq processing complete")
+        logger.info(f"Successfully processed: {successful}")
+        logger.info(f"Failed to process: {failed}")
+        logger.info("=" * 50)
+
+        return successful > 0 or len(json_files) == 0
+
     except Exception as e:
-        logger.error(f"Fatal error in Groq processing: {str(e)}", exc_info=True)
-        raise
+        logger.error(f"Error in main process: {str(e)}")
+        return False
 
 
 if __name__ == "__main__":
