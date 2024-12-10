@@ -106,9 +106,7 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
                 page_num = int(page_match.group(1)) if page_match else i
 
                 # Create optimizer path
-                optimizer_path = (
-                    str(input_file).replace("/OCR/", "/optimizer/").replace(".txt", ".jpg")
-                )
+                optimizer_path = f"media/plumbing_code/optimizer/NYCP{chapter}ch_{page_num}pg.jpg"
 
                 # Create initial file entry
                 file_data = {
