@@ -151,3 +151,35 @@ LANGUAGE_CODE: str = "en-us"
 TIME_ZONE: str = "America/New_York"
 USE_I18N: bool = True
 USE_TZ: bool = True
+
+# LOGGING CONFIGURATION
+# ------------------------------------------------------------------------------
+# Base logging configuration - specific handlers and loggers are defined in environment settings
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        "main.utils": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": True,
+        },
+    },
+}

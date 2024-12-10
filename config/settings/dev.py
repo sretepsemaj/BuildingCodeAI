@@ -29,8 +29,11 @@ STATIC_ROOT.mkdir(parents=True, exist_ok=True)
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
+# Create plumbing code directory
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIR.mkdir(parents=True, exist_ok=True)
+
 # Plumbing code processing directories
-PLUMBING_CODE_BASE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIRS = [
     "uploads",
     "ocr",
@@ -46,12 +49,11 @@ PLUMBING_CODE_DIRS = [
 ]
 
 # Create plumbing code directories
-PLUMBING_CODE_BASE_DIR.mkdir(parents=True, exist_ok=True)
 for dir_name in PLUMBING_CODE_DIRS:
-    (PLUMBING_CODE_BASE_DIR / dir_name).mkdir(parents=True, exist_ok=True)
+    (PLUMBING_CODE_DIR / dir_name).mkdir(parents=True, exist_ok=True)
 
 # Create paths dictionary for use in processing
-PLUMBING_CODE_PATHS = {dirname: PLUMBING_CODE_BASE_DIR / dirname for dirname in PLUMBING_CODE_DIRS}
+PLUMBING_CODE_PATHS = {dirname: PLUMBING_CODE_DIR / dirname for dirname in PLUMBING_CODE_DIRS}
 
 # URL CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -67,65 +69,81 @@ STATICFILES_DIRS = [
 
 # LOGGING CONFIGURATION
 # ------------------------------------------------------------------------------
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "verbose",
-        },
+# Get base logging config
+LOGGING = LOGGING.copy()  # type: ignore
+
+# Add file handlers
+LOGGING["handlers"].update(
+    {
         "process_ocr": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "process_ocr.log",
+            "filename": str(LOGS_DIR / "process_ocr.log"),
             "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
         },
         "process_filename": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "process_filename.log",
+            "filename": str(LOGS_DIR / "process_filename.log"),
             "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
         },
         "process_image": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "process_image.log",
+            "filename": str(LOGS_DIR / "process_image.log"),
             "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
         },
         "images_optimizer": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "images_optimizer.log",
+            "filename": str(LOGS_DIR / "images_optimizer.log"),
             "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
         },
         "process_json": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "process_json.log",
+            "filename": str(LOGS_DIR / "process_json.log"),
             "formatter": "verbose",
-            "mode": "a",  # Append mode
+            "mode": "w",  # Overwrite mode
         },
         "process_json_wash": {
             "level": "INFO",
             "class": "logging.FileHandler",
-            "filename": LOGS_DIR / "process_json_wash.log",
+            "filename": str(LOGS_DIR / "process_json_wash.log"),
             "formatter": "verbose",
-            "mode": "a",  # Append mode
+            "mode": "w",  # Overwrite mode
         },
-    },
-    "loggers": {
-        "django": {
-            "handlers": ["console"],
+        "process_groq": {
             "level": "INFO",
-            "propagate": True,
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "process_groq.log"),
+            "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
         },
+        "process_aws": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "process_aws.log"),
+            "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
+        },
+        "django": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "django.log"),
+            "formatter": "verbose",
+            "mode": "w",  # Overwrite mode
+        },
+    }
+)
+
+# Update loggers configuration
+LOGGING["loggers"].update(
+    {
         "main.utils.process_ocr": {
             "handlers": ["console", "process_ocr"],
             "level": "INFO",
@@ -156,8 +174,23 @@ LOGGING = {
             "level": "INFO",
             "propagate": False,
         },
-    },
-}
+        "main.utils.process_groq": {
+            "handlers": ["console", "process_groq"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_aws": {
+            "handlers": ["console", "process_aws"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django": {
+            "handlers": ["console", "django"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    }
+)
 
 # DEBUG TOOLBAR CONFIGURATION
 # ------------------------------------------------------------------------------
