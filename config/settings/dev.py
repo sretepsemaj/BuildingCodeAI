@@ -45,7 +45,6 @@ PLUMBING_CODE_DIRS = [
     "json_final",
     "json_processed",
     "optimizer",
-    "text",  # Add text directory for OCR output
 ]
 
 # Create plumbing code directories
