@@ -7,7 +7,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 # Add project root to Python path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -26,10 +26,56 @@ logger = logging.getLogger("main.utils.process_json_wash")
 
 def find_table_file(base_name: str, tables_dir: Path) -> Optional[Path]:
     """Find corresponding table file in tables directory."""
-    table_file = tables_dir / f"{base_name}.csv"
-    if table_file.exists():
-        return table_file
-    return None
+    chapter_match = re.match(r"NYCP(\d+)CH", base_name)
+    if not chapter_match:
+        return None
+
+    chapter_num = chapter_match.group(1)
+    pattern = f"NYCP{chapter_num}ch_*pg.csv"
+    table_files = list(tables_dir.glob(pattern))
+
+    return table_files[0] if table_files else None
+
+
+def extract_sections(text: str, file_entry: Dict[str, Any]) -> List[Dict]:
+    """Extract sections from text content."""
+    lines = text.split("\n")
+    sections = []
+    current_section = None
+    current_content = []
+
+    for line in lines:
+        # Look for section headers like "101.1 Title." or "SECTION PC 101.1 Title"
+        section_match = re.match(
+            r"^(?:SECTION PC )?(\d+(?:\.\d+)?)\s+" r"([^.]+)\.?(.*)$",
+            line.strip(),
+        )
+        if section_match:
+            if current_section:
+                current_section["c"] = "\n".join(current_content).strip()
+                sections.append(current_section)
+                current_content = []
+
+            section_num = section_match.group(1)
+            section_title = section_match.group(2).strip()
+            first_content = section_match.group(3).strip()
+
+            current_section = {
+                "i": section_num,
+                "t": section_title,
+                "f": file_entry.get("i", 1),  # Use the page number from the file entry
+                "o": file_entry.get("o", ""),  # Add original file reference
+            }
+            if first_content:
+                current_content.append(first_content)
+        elif current_section and line.strip():
+            current_content.append(line.strip())
+
+    if current_section:
+        current_section["c"] = "\n".join(current_content).strip()
+        sections.append(current_section)
+
+    return sections
 
 
 def process_json_file(json_file: Path, tables_dir: Path) -> bool:
@@ -37,35 +83,60 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
     try:
         logger.info("Processing JSON file: %s", json_file)
 
-        # Read the JSON file
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Process each file entry if "f" exists
+        chapter_match = re.match(r"NYCP(\d+)CH", json_file.stem)
+        if not chapter_match:
+            logger.error("Invalid filename format: %s", json_file.name)
+            return False
+
+        chapter_num = chapter_match.group(1)
+
+        output_data = {
+            "m": {"c": chapter_num, "t": "NYCPC", "ct": data.get("m", {}).get("ct", "")},
+            "f": [],
+            "s": [],
+        }
+
+        all_sections = []
         if "f" in data and isinstance(data["f"], list):
             for file_entry in data["f"]:
-                if isinstance(file_entry, dict) and "o" in file_entry:
-                    # Get the optimizer file path and base name
-                    optimizer_path = Path(file_entry["o"])
-                    # Get base name without _pg suffix
+                if isinstance(file_entry, dict):
+                    optimizer_path = Path(file_entry.get("o", ""))
                     base_name = optimizer_path.stem.split("_")[0]
-
-                    # Look for corresponding table file
                     table_file = find_table_file(base_name, tables_dir)
 
-                    # Set p field to table path or null
-                    file_entry["p"] = str(table_file) if table_file else None
-                    if table_file:
-                        logger.info("Found table file for %s: %s", base_name, table_file)
-                    else:
-                        logger.debug("No table file found for %s", base_name)
+                    new_entry = {
+                        "i": file_entry.get("i", 1),  # Page number from file entry
+                        "p": str(table_file) if table_file else None,
+                        "o": file_entry.get("o", ""),
+                        "t": file_entry.get("t", ""),
+                    }
+                    output_data["f"].append(new_entry)
 
-        # Save to json_processed directory
+                    # Extract sections from text content with file entry context
+                    sections = extract_sections(file_entry.get("t", ""), file_entry)
+                    all_sections.extend(sections)
+
+        # Sort sections by their identifiers
+        all_sections.sort(key=lambda x: [int(n) for n in x["i"].split(".")])
+
+        # Structure the sections properly
+        if "s" in data:
+            output_data["s"] = {
+                "d": data["s"].get("d", []),
+                "t": data["s"].get("t", []),
+                "sections": all_sections,
+            }
+        else:
+            output_data["s"] = {"d": [], "t": [], "sections": all_sections}
+
         processed_dir = settings.PLUMBING_CODE_PATHS["json_processed"]
         processed_file = processed_dir / json_file.name
 
         with open(processed_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
         logger.info("Saved processed JSON file to: %s", processed_file)
 
         return True
@@ -81,21 +152,18 @@ def main() -> bool:
         logger.info("=" * 50)
         logger.info("Starting JSON washing process")
 
-        # Get paths from Django settings
         json_dir = Path(settings.PLUMBING_CODE_PATHS["json"])
         tables_dir = Path(settings.PLUMBING_CODE_PATHS["tables"])
 
         logger.info("JSON directory: %s", json_dir)
         logger.info("Tables directory: %s", tables_dir)
 
-        # Get list of JSON files to process
         json_files = list(json_dir.glob("NYCP*CH_.json"))
         logger.info("Found %s JSON files to process", len(json_files))
 
         successful = 0
         failed = 0
 
-        # Process each JSON file
         for json_file in json_files:
             if process_json_file(json_file, tables_dir):
                 successful += 1
@@ -115,98 +183,4 @@ def main() -> bool:
 
 
 if __name__ == "__main__":
-    # Specific input and output files
-    input_file = (
-        "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/media/plumbing_code/json/NYCP1CH_.json"
-    )
-    output_file = "/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai/media/plumbing_code/json_processed/NYCP1CH_.json"
-
-    try:
-        # Read input JSON
-        with open(input_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        # Create the output JSON structure
-        output_data = {"m": {"c": "1", "t": "NYCPC", "ct": "ADMINISTRATION"}, "f": [], "s": []}
-
-        # Process each file entry if it exists
-        if "f" in data and isinstance(data["f"], list):
-            output_data["f"] = [
-                {
-                    "i": entry.get("i"),
-                    "p": None,  # Set p to null
-                    "o": entry.get("o"),
-                    "pg": entry.get("pg"),
-                    "t": entry.get("t", ""),
-                }
-                for entry in data["f"]
-            ]
-
-            # Extract sections from text content
-            for entry in output_data["f"]:
-                text = entry.get("t", "")
-                lines = text.split("\n")
-                current_section = None
-                current_content = []
-
-                for line in lines:
-                    # Look for section headers like "101.1 Title."
-                    section_match = re.match(
-                        r"^(?:SECTION PC )?(\d+(?:\.\d+)?)\s+" r"([^.]+)\.?(.*)$",
-                        line.strip(),
-                    )
-                    if section_match:
-                        # If we have a previous section, save it
-                        if current_section:
-                            current_section["c"] = "\n".join(current_content).strip()
-                            output_data["s"].append(current_section)
-                            current_content = []
-
-                        # Start new section
-                        section_num = section_match.group(1)
-                        section_title = section_match.group(2).strip()
-                        first_content = section_match.group(3).strip()
-
-                        current_section = {
-                            "i": section_num,
-                            "t": section_title,
-                            "f": entry.get("pg", 1),
-                        }
-                        if first_content:
-                            current_content.append(first_content)
-                    elif current_section and line.strip():
-                        current_content.append(line.strip())
-
-                # Save the last section
-                if current_section:
-                    current_section["c"] = "\n".join(current_content).strip()
-                    output_data["s"].append(current_section)
-
-        # Add sections after files
-        # Copy over any existing definitions and terms
-        if "s" in data:
-            if "d" in data["s"]:
-                output_data["s"] = {
-                    "d": data["s"]["d"],
-                    "t": data["s"]["t"] if "t" in data["s"] else [],
-                    "sections": output_data["s"],
-                }
-            else:
-                output_data["s"] = {
-                    "d": [],
-                    "t": data["s"]["t"] if "t" in data["s"] else [],
-                    "sections": output_data["s"],
-                }
-
-        # Create output directory if it doesn't exist
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
-        # Write the processed JSON
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
-
-        msg = "Successfully processed %s and saved to %s"
-        logger.info(msg, input_file, output_file)
-
-    except Exception as e:
-        logger.error("Error processing file: %s", str(e))
+    main()
