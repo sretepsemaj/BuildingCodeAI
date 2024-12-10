@@ -35,7 +35,7 @@ def find_table_file(base_name: str, tables_dir: Path) -> Optional[Path]:
 def process_json_file(json_file: Path, tables_dir: Path) -> bool:
     """Process a single JSON file and update with table information."""
     try:
-        logger.info(f"Processing JSON file: {json_file}")
+        logger.info("Processing JSON file: %s", json_file)
 
         # Read the JSON file
         with open(json_file, "r", encoding="utf-8") as f:
@@ -47,9 +47,8 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
                 if isinstance(file_entry, dict) and "o" in file_entry:
                     # Get the optimizer file path and base name
                     optimizer_path = Path(file_entry["o"])
-                    base_name = optimizer_path.stem.split("_")[
-                        0
-                    ]  # Get base name without _pg suffix
+                    # Get base name without _pg suffix
+                    base_name = optimizer_path.stem.split("_")[0]
 
                     # Look for corresponding table file
                     table_file = find_table_file(base_name, tables_dir)
@@ -57,9 +56,9 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
                     # Set p field to table path or null
                     file_entry["p"] = str(table_file) if table_file else None
                     if table_file:
-                        logger.info(f"Found table file for {base_name}: {table_file}")
+                        logger.info("Found table file for %s: %s", base_name, table_file)
                     else:
-                        logger.debug(f"No table file found for {base_name}")
+                        logger.debug("No table file found for %s", base_name)
 
         # Save to json_processed directory
         processed_dir = settings.PLUMBING_CODE_PATHS["json_processed"]
@@ -67,12 +66,12 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
 
         with open(processed_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.info(f"Saved processed JSON file to: {processed_file}")
+        logger.info("Saved processed JSON file to: %s", processed_file)
 
         return True
 
     except Exception as e:
-        logger.error(f"Error processing JSON file {json_file}: {str(e)}")
+        logger.error("Error processing JSON file %s: %s", json_file, str(e))
         return False
 
 
@@ -86,12 +85,12 @@ def main() -> bool:
         json_dir = Path(settings.PLUMBING_CODE_PATHS["json"])
         tables_dir = Path(settings.PLUMBING_CODE_PATHS["tables"])
 
-        logger.info(f"JSON directory: {json_dir}")
-        logger.info(f"Tables directory: {tables_dir}")
+        logger.info("JSON directory: %s", json_dir)
+        logger.info("Tables directory: %s", tables_dir)
 
         # Get list of JSON files to process
         json_files = list(json_dir.glob("NYCP*CH_.json"))
-        logger.info(f"Found {len(json_files)} JSON files to process")
+        logger.info("Found %s JSON files to process", len(json_files))
 
         successful = 0
         failed = 0
@@ -104,14 +103,14 @@ def main() -> bool:
                 failed += 1
 
         logger.info("JSON washing complete")
-        logger.info(f"Successfully processed: {successful}")
-        logger.info(f"Failed to process: {failed}")
+        logger.info("Successfully processed: %s", successful)
+        logger.info("Failed to process: %s", failed)
         logger.info("=" * 50)
 
         return successful > 0 or len(json_files) == 0
 
     except Exception as e:
-        logger.error(f"Error in main process: {str(e)}")
+        logger.error("Error in main process: %s", str(e))
         return False
 
 
@@ -146,14 +145,14 @@ if __name__ == "__main__":
             # Extract sections from text content
             for entry in output_data["f"]:
                 text = entry.get("t", "")
-                lines = text.split('\n')
+                lines = text.split("\n")
                 current_section = None
                 current_content = []
-                
+
                 for line in lines:
                     # Look for section headers like "101.1 Title."
                     section_match = re.match(
-                        r"^(?:SECTION PC )?(\d+(?:\.\d+)?)\s+([^.]+)\.?(.*)$",
+                        r"^(?:SECTION PC )?(\d+(?:\.\d+)?)\s+" r"([^.]+)\.?(.*)$",
                         line.strip(),
                     )
                     if section_match:
@@ -206,7 +205,8 @@ if __name__ == "__main__":
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Successfully processed {input_file} and saved to {output_file}")
+        msg = "Successfully processed %s and saved to %s"
+        logger.info(msg, input_file, output_file)
 
     except Exception as e:
-        logger.error(f"Error processing file: {str(e)}")
+        logger.error("Error processing file: %s", str(e))
