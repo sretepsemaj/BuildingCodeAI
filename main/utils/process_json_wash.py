@@ -134,16 +134,6 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
             "s": [],
         }
 
-        # Copy over file entries with their p field
-        for file_entry in data.get("f", []):
-            output_entry = {
-                "i": file_entry.get("i"),
-                "p": file_entry.get("p"),  # Copy over the p field
-                "o": file_entry.get("o"),
-                "t": file_entry.get("t"),
-            }
-            output_data["f"].append(output_entry)
-
         all_sections = []
         if "f" in data and isinstance(data["f"], list):
             for file_entry in data["f"]:
