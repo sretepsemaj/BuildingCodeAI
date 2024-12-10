@@ -42,69 +42,75 @@ if not any(isinstance(handler, logging.FileHandler) for handler in logger.handle
     logger.setLevel(logging.INFO)
 
 
-def read_table_data(table_path: Path) -> Optional[Dict]:
-    """Read table data from a file."""
+def extract_chapter_info(filename: str) -> Tuple[str, str]:
+    """Extract chapter number and type from filename."""
+    match = re.match(r"NYCP(\d+)ch_.*", filename)
+    if match:
+        chapter = match.group(1)
+        return chapter, "NYCPC"
+    return "", ""
+
+
+def process_files(input_files: List[Path], output_dir: Path) -> bool:
+    """Process multiple text files and save as single JSON."""
     try:
-        if not table_path.exists():
-            logger.warning(f"Table file not found: {table_path}")
-            return None
+        if not input_files:
+            logger.warning("No input files found")
+            return False
 
-        logger.info(f"Reading table data from: {table_path}")
-        with open(table_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        logger.debug(f"Successfully loaded table data from {table_path}")
-        return data
+        # Extract chapter info from first file
+        chapter, doc_type = extract_chapter_info(input_files[0].name)
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in table file {table_path}: {str(e)}")
-        return None
-    except Exception as e:
-        logger.error(f"Error reading table file {table_path}: {str(e)}")
-        return None
+        # Create files array
+        files_data = []
+        for i, input_file in enumerate(sorted(input_files), 1):
+            try:
+                logger.info(f"Processing file: {input_file}")
 
+                # Read the input file
+                with open(input_file, "r", encoding="utf-8") as f:
+                    content = f.read()
 
-def process_file(input_file: Path, output_dir: Path) -> bool:
-    """Process a single text file and save as JSON."""
-    try:
-        logger.info(f"Processing file: {input_file}")
+                # Extract page number from filename
+                page_match = re.search(r"_(\d+)pg\.txt$", input_file.name)
+                page_num = int(page_match.group(1)) if page_match else i
 
-        # Read the input file
-        with open(input_file, "r", encoding="utf-8") as f:
-            content = f.read()
+                # Create optimizer path
+                optimizer_path = (
+                    str(input_file).replace("/OCR/", "/optimizer/").replace(".txt", ".jpg")
+                )
 
-        # Extract filename without extension
-        base_name = input_file.stem
+                file_data = {
+                    "i": i,
+                    "p": str(input_file),
+                    "o": optimizer_path,
+                    "pg": page_num,
+                    "t": content,
+                }
+                files_data.append(file_data)
+                logger.info(f"Successfully processed: {input_file.name}")
 
-        # Look for associated table file
-        table_path = Path(str(input_file).replace(".txt", "_table.json"))
-        table_data = read_table_data(table_path) if table_path.exists() else None
+            except Exception as e:
+                logger.error(f"Error processing file {input_file}: {str(e)}")
+                continue
 
-        # Create JSON structure
-        data = {
-            "filename": input_file.name,
-            "content": content,
-            "tables": table_data,
-            "metadata": {
-                "processed_date": datetime.now().isoformat(),
-                "version": "1.0",
-            },
-        }
+        # Create final JSON structure
+        data = {"m": {"c": chapter, "t": doc_type, "ct": ""}, "f": files_data}
 
         # Create output directory if it doesn't exist
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Save as JSON
-        output_file = output_dir / f"{base_name}.json"
+        output_file = output_dir / f"NYCP{chapter}CH_.json"
         logger.info(f"Saving JSON to: {output_file}")
 
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-        logger.info(f"Successfully processed: {input_file.name}")
         return True
 
     except Exception as e:
-        logger.error(f"Error processing file {input_file}: {str(e)}")
+        logger.error(f"Error in process_files: {str(e)}")
         return False
 
 
@@ -127,22 +133,31 @@ def main() -> bool:
         text_files = list(ocr_dir.glob("*.txt"))
         logger.info(f"Found {len(text_files)} text files to process")
 
+        # Group files by chapter
+        files_by_chapter = {}
+        for file in text_files:
+            chapter, _ = extract_chapter_info(file.name)
+            if chapter:
+                if chapter not in files_by_chapter:
+                    files_by_chapter[chapter] = []
+                files_by_chapter[chapter].append(file)
+
         successful = 0
         failed = 0
 
-        # Process each file
-        for text_file in text_files:
-            if process_file(text_file, json_dir):
+        # Process each chapter's files
+        for chapter_files in files_by_chapter.values():
+            if process_files(chapter_files, json_dir):
                 successful += 1
             else:
                 failed += 1
 
         logger.info("JSON processing complete")
-        logger.info(f"Successfully processed: {successful}")
-        logger.info(f"Failed to process: {failed}")
+        logger.info(f"Successfully processed chapters: {successful}")
+        logger.info(f"Failed to process chapters: {failed}")
         logger.info("=" * 50)
 
-        return successful > 0 or len(text_files) == 0
+        return successful > 0 or len(files_by_chapter) == 0
 
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}")

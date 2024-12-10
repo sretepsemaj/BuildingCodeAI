@@ -112,6 +112,13 @@ LOGGING = {
             "formatter": "verbose",
             "mode": "a",  # Append mode
         },
+        "process_json_wash": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": LOGS_DIR / "process_json_wash.log",
+            "formatter": "verbose",
+            "mode": "a",  # Append mode
+        },
     },
     "loggers": {
         "django": {
@@ -141,6 +148,11 @@ LOGGING = {
         },
         "main.utils.process_json": {
             "handlers": ["console", "process_json"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "main.utils.process_json_wash": {
+            "handlers": ["console", "process_json_wash"],
             "level": "INFO",
             "propagate": False,
         },

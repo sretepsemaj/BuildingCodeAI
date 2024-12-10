@@ -1,243 +1,116 @@
-"""Script to process text files and tables into optimized JSON format."""
+#!/usr/bin/env python3
+"""Script to add table file paths to JSON files."""
 
 import json
 import logging
 import os
-import re
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Optional
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Add project root to Python path
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
 
-# Define paths
-BASE_DIR = Path("/Users/aaronjpeters/PlumbingCodeAi/BuildingCodeai")
-MEDIA_ROOT = BASE_DIR / "media"
-PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
-PLUMBING_CODE_DIRS = {
-    "ocr": PLUMBING_CODE_DIR / "OCR",
-    "json": PLUMBING_CODE_DIR / "json",
-    "json_final": PLUMBING_CODE_DIR / "json_final",
-    "json_processed": PLUMBING_CODE_DIR / "json_processed",
-    "original": PLUMBING_CODE_DIR / "original",
-    "optimizer": PLUMBING_CODE_DIR / "optimizer",
-    "tables": PLUMBING_CODE_DIR / "tables",
-    "analytics": PLUMBING_CODE_DIR / "analytics",
-    "text": PLUMBING_CODE_DIR / "text",
-    "uploads": PLUMBING_CODE_DIR / "uploads",
-}
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+import django  # noqa: E402
+
+django.setup()
+
+from django.conf import settings  # noqa: E402
+
+# Configure logger
+logger = logging.getLogger("main.utils.process_json_wash")
 
 
-def read_table_data(table_file: str) -> Dict:
-    """Read table data from a file.
+def find_table_file(base_name: str, tables_dir: Path) -> Optional[Path]:
+    """Find corresponding table file in tables directory."""
+    table_file = tables_dir / f"{base_name}.csv"
+    if table_file.exists():
+        return table_file
+    return None
 
-    Args:
-        table_file: Path to the table data file
 
-    Returns:
-        Dict containing table content and metadata
-    """
+def process_json_file(json_file: Path, tables_dir: Path) -> bool:
+    """Process a single JSON file and update with table information."""
     try:
-        with open(table_file, "r", encoding="utf-8") as f:
-            content = f.read()
-        return {"table_content": content, "path": table_file}
-    except Exception as e:
-        logger.error(f"Error reading table file {table_file}: {str(e)}")
-        return None
+        logger.info(f"Processing JSON file: {json_file}")
 
+        # Read the JSON file
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-def process_file(text_path: Union[str, Path]) -> Optional[Tuple[Dict, Dict]]:
-    """Process a single text file and its associated files.
+        modified = False
 
-    Args:
-        text_path: Path to the text file
+        # Process each file entry
+        for file_entry in data.get("f", []):
+            # Get the OCR file path and base name
+            ocr_path = Path(file_entry["p"]) if file_entry.get("p") else None
+            if ocr_path:
+                base_name = ocr_path.stem
 
-    Returns:
-        Tuple containing processed file data and extra info or None if error
-    """
-    try:
-        text_path = Path(text_path)
-        filename = text_path.stem
+                # Look for corresponding table file
+                table_file = find_table_file(base_name, tables_dir)
 
-        # Extract page number from filename
-        try:
-            pg_num = int("".join(filter(str.isdigit, filename.split("_")[-1])))
-        except (IndexError, ValueError):
-            pg_num = 0
-            logger.warning(f"Could not extract page number from filename: {filename}")
+                if table_file:
+                    logger.info(f"Found table file for {base_name}: {table_file}")
+                    file_entry["p"] = str(table_file)
+                    modified = True
+                else:
+                    logger.debug(f"No table file found for {base_name}")
 
-        # Check for associated files
-        table_file = PLUMBING_CODE_DIRS["tables"] / f"{filename}_data.csv"
-        analytics_file = PLUMBING_CODE_DIRS["analytics"] / f"{filename}.png"
+        if modified:
+            # Save updated JSON
+            with open(json_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            logger.info(f"Updated JSON file: {json_file}")
+            return True
 
-        # Read the text content
-        with open(str(text_path), "r", encoding="utf-8") as f:
-            text_content = f.read()
-
-        # Create base file entry
-        file_entry = {
-            "i": pg_num,
-            "p": str(table_file) if table_file.exists() else None,
-            "o": str(PLUMBING_CODE_DIRS["optimizer"] / f"{filename}.jpg"),
-            "t": text_content,
-        }
-
-        # Add table and analytics info to return separately
-        extra_info = {}
-        if table_file.exists():
-            extra_info["table"] = str(table_file)
-        if analytics_file.exists():
-            extra_info["analytics"] = str(analytics_file)
-
-        return file_entry, extra_info
+        logger.info(f"No changes needed for: {json_file}")
+        return True
 
     except Exception as e:
-        logger.error(f"Error processing file {text_path}: {str(e)}")
-        return None, None
+        logger.error(f"Error processing JSON file {json_file}: {str(e)}")
+        return False
 
 
-def process_directory(base_dir: str) -> Dict[str, Dict]:
-    """Process all text files in the OCR directory."""
+def main() -> bool:
+    """Process all JSON files and update with table information."""
     try:
-        processed_data = {}
+        logger.info("=" * 50)
+        logger.info("Starting JSON washing process")
 
-        # Process each text file in the OCR directory
-        for file_path in PLUMBING_CODE_DIRS["ocr"].glob("*.txt"):
-            try:
-                # Extract chapter number from filename (e.g., NYCP1CH -> 1)
-                chapter_match = re.search(r"NYCP(\d+)CH", file_path.stem, re.IGNORECASE)
-                if not chapter_match:
-                    logger.warning(
-                        f"Could not extract chapter number from filename: {file_path.name}"
-                    )
-                    continue
+        # Get paths from Django settings
+        json_dir = Path(settings.PLUMBING_CODE_PATHS["json"])
+        tables_dir = Path(settings.PLUMBING_CODE_PATHS["tables"])
 
-                chapter_num = chapter_match.group(1)
-                chapter_key = f"NYCP{chapter_num}CH"
+        logger.info(f"JSON directory: {json_dir}")
+        logger.info(f"Tables directory: {tables_dir}")
 
-                # Initialize chapter data if not exists
-                if chapter_key not in processed_data:
-                    processed_data[chapter_key] = {
-                        "m": {
-                            "c": chapter_num,
-                            "t": "NYCPC",
-                            "ct": "",  # Will be filled from content
-                        },
-                        "f": [],
-                        "s": [],
-                    }
+        # Get list of JSON files to process
+        json_files = list(json_dir.glob("NYCP*CH_.json"))
+        logger.info(f"Found {len(json_files)} JSON files to process")
 
-                # Process the file
-                file_entry, extra_info = process_file(str(file_path))
-                if file_entry:
-                    processed_data[chapter_key]["f"].append(file_entry)
+        successful = 0
+        failed = 0
 
-                    # Extract chapter metadata from first page
-                    if file_entry["i"] == 1 and "t" in file_entry:
-                        text_content = file_entry["t"]
-                        # Look for the chapter title pattern
-                        chapter_pattern = r"CHAPTER\s+\d+\s*\n\s*(.*?)(?:\n|SECTION|$)"
-                        chapter_match = re.search(
-                            chapter_pattern, text_content, re.DOTALL | re.IGNORECASE
-                        )
-                        if chapter_match:
-                            chapter_title = chapter_match.group(1).strip()
-                            processed_data[chapter_key]["m"]["ct"] = chapter_title
+        # Process each JSON file
+        for json_file in json_files:
+            if process_json_file(json_file, tables_dir):
+                successful += 1
+            else:
+                failed += 1
 
-                    # Process sections from text content
-                    if "t" in file_entry:
-                        sections = []
-                        current_section = None
-                        for line in file_entry["t"].split("\n"):
-                            line = line.strip()
-                            if not line:
-                                continue
+        logger.info("JSON washing complete")
+        logger.info(f"Successfully processed: {successful}")
+        logger.info(f"Failed to process: {failed}")
+        logger.info("=" * 50)
 
-                            # Check for section header (e.g., "308.5.6.3 Interval of support.")
-                            section_match = re.match(r"^(\d+(?:\.\d+)*)\s+(.+)$", line)
-                            if section_match:
-                                if current_section:
-                                    sections.append(current_section)
-
-                                section_id = section_match.group(1)
-                                section_title = section_match.group(2)
-
-                                # Split title and content at the first period after words
-                                title_parts = re.match(r"^(.+?\.)\s*(.*)$", section_title)
-                                if title_parts:
-                                    title = title_parts.group(1)
-                                    initial_content = title_parts.group(2)
-                                else:
-                                    title = section_title
-                                    initial_content = ""
-
-                                current_section = {
-                                    "i": section_id,
-                                    "t": title,
-                                    "c": initial_content + "\n" if initial_content else "",
-                                    "f": file_entry["i"],
-                                }
-                            elif current_section:
-                                current_section["c"] += line + "\n"
-
-                        if current_section:
-                            sections.append(current_section)
-
-                        # Add processed sections
-                        processed_data[chapter_key]["s"].extend(sections)
-
-            except Exception as e:
-                logger.error(f"Error processing file {file_path}: {str(e)}")
-                continue
-
-        # Sort files by page number and sections by ID
-        for chapter_data in processed_data.values():
-            chapter_data["f"].sort(key=lambda x: x["i"])
-
-            def section_key(section):
-                parts = section["i"].split(".")
-                return tuple(float(p) for p in parts)
-
-            chapter_data["s"].sort(key=section_key)
-
-        return processed_data
-
-    except Exception as e:
-        logger.error(f"Error processing directory {base_dir}: {str(e)}")
-        return {}
-
-
-def save_json(data: Dict[str, Dict], output_dir: str) -> None:
-    """Save processed data to JSON files."""
-    try:
-        os.makedirs(output_dir, exist_ok=True)
-
-        for filename, chapter_data in data.items():
-            output_file = os.path.join(output_dir, f"{filename}.json")
-            with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(chapter_data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Saved processed data to {output_file}")
-
-    except Exception as e:
-        logger.error(f"Error saving JSON files: {str(e)}")
-        raise
-
-
-def main():
-    """Process all files and create optimized JSON output."""
-    try:
-        # Process all files
-        processed_data = process_directory(str(PLUMBING_CODE_DIR))
-
-        # Save to JSON files
-        save_json(processed_data, str(PLUMBING_CODE_DIRS["json_processed"]))
-
-        logger.info("Successfully processed all files")
+        return successful > 0 or len(json_files) == 0
 
     except Exception as e:
         logger.error(f"Error in main process: {str(e)}")
-        raise
+        return False
 
 
 if __name__ == "__main__":
