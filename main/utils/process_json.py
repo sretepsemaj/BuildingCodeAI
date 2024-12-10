@@ -51,6 +51,26 @@ def extract_chapter_info(filename: str) -> Tuple[str, str]:
     return "", ""
 
 
+def find_matching_table(file_entry: Dict, tables_dir: Path) -> Optional[Path]:
+    """Find matching table file for a given file entry."""
+    # Get all table files in the directory
+    table_files = list(tables_dir.glob("*.csv"))
+
+    # Extract page number from the file entry
+    page_num = file_entry.get("i", 1)
+
+    # Try to find a matching table file
+    for table_file in table_files:
+        # Extract page number from table filename
+        table_match = re.search(r"_(\d+)pg\.csv$", table_file.name)
+        if table_match:
+            table_page = int(table_match.group(1))
+            if table_page == page_num:
+                return table_file
+
+    return None
+
+
 def find_table_file(chapter_num: str, tables_dir: Path) -> Optional[Path]:
     """Find corresponding table file in tables directory."""
     pattern = f"NYCP{chapter_num}ch_*pg.csv"
@@ -70,7 +90,6 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
 
         # Get tables directory
         tables_dir = Path(settings.PLUMBING_CODE_PATHS["tables"])
-        table_file = find_table_file(chapter, tables_dir) if chapter else None
 
         # Create files array
         files_data = []
@@ -91,14 +110,23 @@ def process_files(input_files: List[Path], output_dir: Path) -> bool:
                     str(input_file).replace("/OCR/", "/optimizer/").replace(".txt", ".jpg")
                 )
 
+                # Create initial file entry
                 file_data = {
-                    "i": page_num,  # Use extracted page number
-                    "p": str(table_file) if table_file else None,  # Set table file path or None
+                    "i": page_num,
                     "o": optimizer_path,
                     "t": content,
                 }
+
+                # Find matching table file
+                table_file = find_matching_table(file_data, tables_dir)
+                file_data["p"] = str(table_file) if table_file else None
+
                 files_data.append(file_data)
                 logger.info(f"Successfully processed: {input_file.name}")
+                if table_file:
+                    logger.info(f"Found matching table file: {table_file.name}")
+                else:
+                    logger.info("No matching table file found")
 
             except Exception as e:
                 logger.error(f"Error processing file {input_file}: {str(e)}")
