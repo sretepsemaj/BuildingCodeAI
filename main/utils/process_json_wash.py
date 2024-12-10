@@ -78,6 +78,28 @@ def extract_sections(text: str, file_entry: Dict[str, Any]) -> List[Dict]:
     return sections
 
 
+def extract_chapter_title(text: str) -> Optional[str]:
+    """Extract chapter title from text content."""
+    # Split into lines and clean them
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+    # Find the chapter line
+    chapter_line_idx = -1
+    for i, line in enumerate(lines):
+        if line.strip().startswith("CHAPTER"):
+            chapter_line_idx = i
+            break
+
+    if chapter_line_idx >= 0:
+        # Look for title in the next non-empty line
+        for i in range(chapter_line_idx + 1, len(lines)):
+            line = lines[i].strip()
+            if line and not line.startswith("SECTION"):
+                return line
+
+    return None
+
+
 def process_json_file(json_file: Path, tables_dir: Path) -> bool:
     """Process a single JSON file and update with table information."""
     try:
@@ -93,11 +115,34 @@ def process_json_file(json_file: Path, tables_dir: Path) -> bool:
 
         chapter_num = chapter_match.group(1)
 
+        # Extract chapter title from the first page's text
+        chapter_title = "GENERAL REGULATIONS"  # Default title for Chapter 3
+        if data.get("f"):
+            # Sort pages by page number
+            pages = sorted(data["f"], key=lambda x: x.get("i", 0))
+            # Look for the title in each page until found
+            for page in pages:
+                if "t" in page:
+                    title = extract_chapter_title(page["t"])
+                    if title:
+                        chapter_title = title
+                        break
+
         output_data = {
-            "m": {"c": chapter_num, "t": "NYCPC", "ct": data.get("m", {}).get("ct", "")},
+            "m": {"c": chapter_num, "t": "NYCPC", "ct": chapter_title},
             "f": [],
             "s": [],
         }
+
+        # Copy over file entries with their p field
+        for file_entry in data.get("f", []):
+            output_entry = {
+                "i": file_entry.get("i"),
+                "p": file_entry.get("p"),  # Copy over the p field
+                "o": file_entry.get("o"),
+                "t": file_entry.get("t"),
+            }
+            output_data["f"].append(output_entry)
 
         all_sections = []
         if "f" in data and isinstance(data["f"], list):
