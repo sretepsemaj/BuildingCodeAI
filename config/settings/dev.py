@@ -51,8 +51,19 @@ PLUMBING_CODE_DIRS = [
 for dir_name in PLUMBING_CODE_DIRS:
     (PLUMBING_CODE_DIR / dir_name).mkdir(parents=True, exist_ok=True)
 
-# Create paths dictionary for use in processing
-PLUMBING_CODE_PATHS = {dirname: PLUMBING_CODE_DIR / dirname for dirname in PLUMBING_CODE_DIRS}
+# Define plumbing code paths for easy access
+PLUMBING_CODE_PATHS = {
+    "json_processed": str(PLUMBING_CODE_DIR / "json_processed"),
+    "json_final": str(PLUMBING_CODE_DIR / "json_final"),
+    "json": str(PLUMBING_CODE_DIR / "json"),
+    "uploads": str(PLUMBING_CODE_DIR / "uploads"),
+    "ocr": str(PLUMBING_CODE_DIR / "ocr"),
+    "original": str(PLUMBING_CODE_DIR / "original"),
+    "tables": str(PLUMBING_CODE_DIR / "tables"),
+    "analytics": str(PLUMBING_CODE_DIR / "analytics"),
+    "embeddings": str(PLUMBING_CODE_DIR / "embeddings"),
+    "optimizer": str(PLUMBING_CODE_DIR / "optimizer"),
+}
 
 # URL CONFIGURATION
 # ------------------------------------------------------------------------------

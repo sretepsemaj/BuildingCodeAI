@@ -75,7 +75,7 @@ class DocumentBatch(models.Model):
         return f"Batch {self.id} ({self.status})"
 
     class Meta:
-        """Meta options for DocumentBatch."""
+        """Model metadata for DocumentBatch."""
 
         ordering = ["-created_at"]
         verbose_name_plural = "Document Batches"
@@ -158,7 +158,7 @@ class ProcessedDocument(models.Model):
         return f"Document {self.filename} ({self.status})"
 
     class Meta:
-        """Meta options for ProcessedDocument."""
+        """Model metadata for ProcessedDocument."""
 
         ordering = ["-processed_at"]
 
@@ -185,7 +185,7 @@ class ProcessedImage(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        """Meta options for ProcessedImage model."""
+        """Model metadata for ProcessedImage."""
 
         verbose_name = "Processed Image"
         verbose_name_plural = "Processed Images"
@@ -260,3 +260,84 @@ def delete_image_files(
 
     except Exception as e:
         print(f"Error deleting image files: {e}")
+
+
+class PlumbingDocument(models.Model):
+    """Main document model that holds the chapter information"""
+
+    title = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    json_content = models.JSONField(null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="plumbing_documents")
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        """Model metadata for PlumbingDocument."""
+
+        verbose_name = "Plumbing Document"
+        verbose_name_plural = "Plumbing Documents"
+        ordering = ["title"]
+
+
+class PlumbingImage(models.Model):
+    """Model to store images from the optimizer directory"""
+
+    document = models.ForeignKey(PlumbingDocument, on_delete=models.CASCADE, related_name="images")
+    page_number = models.IntegerField()
+    image = models.ImageField(upload_to="plumbing_code/optimizer/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Model metadata for PlumbingImage."""
+
+        verbose_name = "Plumbing Image"
+        verbose_name_plural = "Plumbing Images"
+        ordering = ["document", "page_number"]
+
+    def __str__(self):
+        return f"{self.document.title} - Page {self.page_number}"
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
+        """Override delete to ensure image file is cleaned up."""
+        if self.image:
+            try:
+                self.image.delete()
+            except Exception as e:
+                print(f"Error deleting image file: {e}")
+        return super().delete(*args, **kwargs)
+
+
+class PlumbingTable(models.Model):
+    """Model to store CSV tables"""
+
+    document = models.ForeignKey(PlumbingDocument, on_delete=models.CASCADE, related_name="tables")
+    page_number = models.IntegerField()
+    csv_content = models.TextField()  # Store CSV content as text
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        """Model metadata for PlumbingTable."""
+
+        verbose_name = "Plumbing Table"
+        verbose_name_plural = "Plumbing Tables"
+        ordering = ["document", "page_number"]
+
+    def __str__(self):
+        return f"{self.document.title} - Table Page {self.page_number}"
+
+
+@receiver(pre_delete, sender=PlumbingImage)
+def delete_plumbing_image_files(
+    sender: Type[PlumbingImage],
+    instance: PlumbingImage,
+    **kwargs: Dict[str, Any],
+) -> None:
+    """Delete image file before deleting the PlumbingImage instance."""
+    if instance.image:
+        try:
+            instance.image.delete(False)
+        except Exception as e:
+            print(f"Error deleting plumbing image file: {e}")
