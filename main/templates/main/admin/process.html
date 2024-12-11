@@ -33,6 +33,16 @@
             <div id="processStatus" class="mt-3"></div>
         </div>
     </div>
+
+    <!-- Process Plumbing Code Data -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Process Plumbing Code Data</h5>
+            <p>Click the button below to process plumbing code data (JSON files, images, and tables).</p>
+            <button id="processPlumbingButton" class="btn btn-primary">Process Plumbing Data</button>
+            <div id="plumbingProcessStatus" class="mt-3"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -47,6 +57,8 @@
     const progressBar = document.querySelector('.progress-bar');
     const processButton = document.getElementById('processButton');
     const processStatus = document.getElementById('processStatus');
+    const processPlumbingButton = document.getElementById('processPlumbingButton');
+    const plumbingProcessStatus = document.getElementById('plumbingProcessStatus');
     const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     // File Upload Preview
@@ -99,40 +111,70 @@
         } catch (error) {
             alert('Error uploading files: ' + error);
         } finally {
-            progress.classList.add('d-none');
             if (submitButton) submitButton.disabled = false;
+            progress.classList.add('d-none');
         }
     });
 
     // Process Button Handler
     if (processButton) {
         processButton.addEventListener('click', async function() {
-            if (this.disabled) return;  // Prevent double-click
-            this.disabled = true;
-            processStatus.innerHTML = '<div class="alert alert-info">Processing started...</div>';
-
             try {
+                processButton.disabled = true;
+                processStatus.innerHTML = '<div class="alert alert-info">Processing images...</div>';
+
                 const response = await fetch('/process/start/', {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    }
+                        'Content-Type': 'application/json',
+                    },
                 });
 
                 const result = await response.json();
+
                 if (result.status === 'success') {
-                    processStatus.innerHTML = '<div class="alert alert-success">Processing completed! <a href="/batch_chapters/" class="alert-link">View Results</a></div>';
+                    processStatus.innerHTML = '<div class="alert alert-success">Successfully processed all images!</div>';
                 } else {
-                    processStatus.innerHTML = '<div class="alert alert-danger">Processing failed: ' + result.message + '</div>';
+                    processStatus.innerHTML = `<div class="alert alert-danger">Error: ${result.message}</div>`;
                 }
             } catch (error) {
-                processStatus.innerHTML = '<div class="alert alert-danger">Error during processing: ' + error + '</div>';
+                processStatus.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
             } finally {
-                this.disabled = false;
+                processButton.disabled = false;
             }
         });
     }
-})();  // End IIFE
+
+    // Plumbing Code Process Button Handler
+    if (processPlumbingButton) {
+        processPlumbingButton.addEventListener('click', async function() {
+            try {
+                processPlumbingButton.disabled = true;
+                plumbingProcessStatus.innerHTML = '<div class="alert alert-info">Processing plumbing code data...</div>';
+
+                const response = await fetch('/admin/process-plumbing/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    plumbingProcessStatus.innerHTML = '<div class="alert alert-success">Successfully processed plumbing code data!</div>';
+                } else {
+                    plumbingProcessStatus.innerHTML = `<div class="alert alert-danger">Error: ${result.error}</div>`;
+                }
+            } catch (error) {
+                plumbingProcessStatus.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            } finally {
+                processPlumbingButton.disabled = false;
+            }
+        });
+    }
+})();
 </script>
 {% endblock %}
