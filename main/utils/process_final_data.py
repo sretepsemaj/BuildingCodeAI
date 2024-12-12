@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -80,92 +81,122 @@ def process_json_files(user: User, json_dir: str = "media/plumbing_code/json_fin
 
 
 def process_images_for_document(
-    doc: PlumbingDocument, image_dir: str = "media/plumbing_code/optimizer"
+    doc: PlumbingDocument,
 ) -> None:
     """Process images for a given document."""
-    image_path = os.path.join(settings.BASE_DIR, image_dir)
-    doc_prefix = doc.title.split("_")[0].replace("CH", "ch")  # Get document prefix and match case
+    image_path = settings.PLUMBING_CODE_PATHS["optimizer"]
+    doc_prefix = doc.title.split("_")[0].replace("CH", "ch")
+
     logger.info(f"Processing images from: {image_path}")
     logger.info(f"Looking for images with prefix: {doc_prefix}")
 
     # First, get existing images for this document
     existing_images = {img.page_number: img for img in doc.images.all()}
 
+    # Track which files we've found for each page
+    page_files = {}
+
+    # First pass: catalog all files by page number
     for filename in os.listdir(image_path):
-        logger.debug(f"Checking file: {filename}")
         if not filename.endswith(".jpg") or not filename.lower().startswith(doc_prefix.lower()):
-            logger.debug(f"Skipping {filename} - not a matching jpg file")
             continue
 
         page_number = extract_page_number(filename)
         if page_number is None:
-            logger.warning(f"Skipping {filename} - could not extract page number")
             continue
 
-        file_path = os.path.join(image_path, filename)
+        # Prefer files without random suffixes
+        if page_number not in page_files or "_" not in filename:
+            page_files[page_number] = filename
+
+    # Second pass: process files
+    for page_number, source_filename in page_files.items():
+        source_path = os.path.join(image_path, source_filename)
+        if not os.path.exists(source_path):
+            logger.warning(f"Source file not found: {source_path}")
+            continue
+
         try:
-            with open(file_path, "rb") as f:
+            with open(source_path, "rb") as f:
                 # If image for this page already exists, update it
                 if page_number in existing_images:
                     img = existing_images[page_number]
                     # Delete old file if it exists
                     if img.image:
-                        img.image.delete(save=False)
-                    img.image = File(f, name=filename)
-                    img.save()
-                    logger.info(f"Updated existing image: {filename} (Page {page_number})")
+                        storage = img.image.storage
+                        if storage.exists(img.image.name):
+                            storage.delete(img.image.name)
+                    # Let Django handle the file naming
+                    img.image.save(source_filename, File(f), save=True)
+                    logger.info(f"Updated existing image for page {page_number}")
                 else:
                     # Create new image record
-                    img = PlumbingImage.objects.create(
-                        document=doc, page_number=page_number, image=File(f, name=filename)
-                    )
-                    logger.info(f"Created new image: {filename} (Page {page_number})")
+                    img = PlumbingImage(document=doc, page_number=page_number)
+                    # Let Django handle the file naming
+                    img.image.save(source_filename, File(f), save=True)
+                    logger.info(f"Created new image for page {page_number}")
+
         except Exception as e:
-            logger.error(f"Error processing image {filename}: {str(e)}")
+            logger.error(f"Error processing image {source_filename}: {str(e)}")
 
 
-def process_tables_for_document(
-    doc: PlumbingDocument, table_dir: str = "media/plumbing_code/tables"
-) -> None:
+def process_tables_for_document(doc: PlumbingDocument) -> None:
     """Process CSV tables for a given document."""
-    table_path = os.path.join(settings.BASE_DIR, table_dir)
-    doc_prefix = doc.title.split("_")[0].replace("CH", "ch")  # Get document prefix and match case
+    table_path = settings.PLUMBING_CODE_PATHS["tables"]
+    doc_prefix = doc.title.split("_")[0].replace("CH", "ch")
+
     logger.info(f"Processing tables from: {table_path}")
     logger.info(f"Looking for tables with prefix: {doc_prefix}")
 
-    # First, get existing tables for this document
-    existing_tables = {table.page_number: table for table in doc.tables.all()}
+    # Track which pages we've processed
+    page_files = {}
+    processed_pages = set()
 
+    # First pass: catalog all files by page number
     for filename in os.listdir(table_path):
-        logger.debug(f"Checking file: {filename}")
         if not filename.endswith(".csv") or not filename.lower().startswith(doc_prefix.lower()):
-            logger.debug(f"Skipping {filename} - not a matching csv file")
             continue
 
         page_number = extract_page_number(filename)
         if page_number is None:
-            logger.warning(f"Skipping {filename} - could not extract page number")
             continue
 
-        file_path = os.path.join(table_path, filename)
+        # Prefer files without random suffixes
+        if page_number not in page_files or "_" not in filename:
+            page_files[page_number] = filename
+
+    # Second pass: process files
+    for page_number, source_filename in page_files.items():
+        file_path = os.path.join(table_path, source_filename)
+        if not os.path.exists(file_path):
+            logger.warning(f"Source file not found: {file_path}")
+            continue
+
         try:
             with open(file_path, "r") as f:
                 csv_content = f.read()
 
-            # If table for this page already exists, update it
-            if page_number in existing_tables:
-                table = existing_tables[page_number]
-                table.csv_content = csv_content
-                table.save()
-                logger.info(f"Updated existing table: {filename} (Page {page_number})")
-            else:
-                # Create new table record
-                table = PlumbingTable.objects.create(
-                    document=doc, page_number=page_number, csv_content=csv_content
-                )
-                logger.info(f"Created new table: {filename} (Page {page_number})")
+            # Try to get existing table first
+            try:
+                table = PlumbingTable.objects.get(document=doc, page_number=page_number)
+                logger.info(f"Updating existing table for page {page_number}")
+            except PlumbingTable.DoesNotExist:
+                table = PlumbingTable(document=doc, page_number=page_number)
+                logger.info(f"Creating new table for page {page_number}")
+
+            # Update the content and save
+            table.csv_content = csv_content
+            table.save()
+            processed_pages.add(page_number)
+
         except Exception as e:
-            logger.error(f"Error processing table {filename}: {str(e)}")
+            logger.error(f"Error processing table {source_filename}: {str(e)}")
+
+    # Clean up any tables in database that weren't in source files
+    for table in doc.tables.all():
+        if table.page_number not in processed_pages:
+            logger.info(f"Removing obsolete table for page {table.page_number}")
+            table.delete()
 
 
 def process_all_data(user: User) -> None:

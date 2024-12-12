@@ -283,11 +283,11 @@ class PlumbingDocument(models.Model):
 
 
 class PlumbingImage(models.Model):
-    """Model to store images from the optimizer directory"""
+    """Model to store images from the final_jpg directory"""
 
     document = models.ForeignKey(PlumbingDocument, on_delete=models.CASCADE, related_name="images")
     page_number = models.IntegerField()
-    image = models.ImageField(upload_to="plumbing_code/optimizer/")
+    image = models.ImageField(upload_to="plumbing_code/final_jpg/")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

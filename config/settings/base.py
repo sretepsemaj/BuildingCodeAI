@@ -89,6 +89,7 @@ PLUMBING_CODE_DIRS = [
     "json_final",
     "json_processed",
     "optimizer",
+    "final_jpg",
 ]
 
 # Create plumbing code directories and paths
@@ -218,6 +219,12 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "process_final_data": {
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "process_final_data.log"),
+            "formatter": "verbose",
+            "mode": "a",
+        },
     },
     "loggers": {
         "django": {
@@ -230,5 +237,14 @@ LOGGING = {
             "level": "INFO",
             "propagate": True,
         },
+        "main.utils.process_final_data": {
+            "handlers": ["console", "process_final_data"],
+            "level": "INFO",
+            "propagate": False,
+        },
     },
 }
+
+# USER CONFIGURATION
+# ------------------------------------------------------------------------------
+DEFAULT_USERNAME = get_env_value("DEFAULT_USERNAME", "admin")
