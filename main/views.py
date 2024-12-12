@@ -19,6 +19,7 @@ from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
 from .models import DocumentBatch, ProcessedDocument, ProcessedImage
+from .utils.process_final_data import process_all_data
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,29 @@ def start_processing(request: HttpRequest) -> JsonResponse:
             )
 
     return JsonResponse({"status": "error", "message": "Invalid request method"}, status=400)
+
+
+@login_required
+@user_passes_test(is_staff_user)
+def process_plumbing_data(request: HttpRequest) -> JsonResponse:
+    """Process plumbing code data (JSON files, images, and tables).
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        JSON response indicating success or failure of processing.
+    """
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "Invalid request method"})
+
+    try:
+        # Process data using the current user
+        process_all_data(request.user)
+        return JsonResponse({"success": True})
+    except Exception as e:
+        logger.error(f"Error processing plumbing data: {str(e)}")
+        return JsonResponse({"success": False, "error": str(e)})
 
 
 @user_passes_test(is_staff_user)
