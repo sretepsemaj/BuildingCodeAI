@@ -18,9 +18,10 @@ urlpatterns = [
     path("profile/", views.profile, name="profile"),
     path("process/", views.process_upload, name="process_upload"),
     path("process/start/", views.start_processing, name="start_processing"),
+    path("process/cleanup/", views.cleanup_intermediate_dirs, name="cleanup_intermediate_dirs"),
+    path("process-plumbing/", views.process_plumbing_data, name="process_plumbing"),
     path("batch_chapters/", views.view_batch_chapters, name="batch_chapters"),
     path("semantic_search/", views.semantic_search, name="semantic_search"),
-    path("process-plumbing/", views.process_plumbing_data, name="process_plumbing"),
     # Password reset URLs
     path("password_reset/", auth_views.PasswordResetView.as_view(), name="password_reset"),
     path(

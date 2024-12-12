@@ -367,6 +367,33 @@ def view_batch_chapters(request: HttpRequest) -> HttpResponse:
         return render(request, "main/admin/chapters.html", {"chapters": []})
 
 
+@user_passes_test(is_staff_user)
+def cleanup_intermediate_dirs(request: HttpRequest) -> JsonResponse:
+    """Clean up intermediate processing directories.
+
+    Args:
+        request: The HTTP request object.
+
+    Returns:
+        JSON response indicating success or failure of cleanup.
+    """
+    if request.method != "POST":
+        return JsonResponse({"status": "error", "message": "Invalid request method"}, status=400)
+
+    try:
+        from django.core.management import call_command
+
+        call_command("clean_intermediate_dirs")
+        return JsonResponse(
+            {"status": "success", "message": "Successfully cleaned up intermediate directories"}
+        )
+    except Exception as e:
+        logger.error(f"Error during cleanup: {str(e)}")
+        return JsonResponse(
+            {"status": "error", "message": f"Error during cleanup: {str(e)}"}, status=500
+        )
+
+
 def logout_view(request: HttpRequest) -> HttpResponse:
     """Handle user logout.
 

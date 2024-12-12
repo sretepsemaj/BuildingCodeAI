@@ -84,7 +84,7 @@ def process_images_for_document(
     doc: PlumbingDocument,
 ) -> None:
     """Process images for a given document."""
-    image_path = settings.PLUMBING_CODE_PATHS["optimizer"]
+    image_path = settings.PLUMBING_CODE_PATHS["final_jpg"]
     doc_prefix = doc.title.split("_")[0].replace("CH", "ch")
 
     logger.info(f"Processing images from: {image_path}")

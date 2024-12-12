@@ -45,6 +45,7 @@ PLUMBING_CODE_DIRS = [
     "json_final",
     "json_processed",
     "optimizer",
+    "final_jpg",  # Added final_jpg directory
 ]
 
 # Create plumbing code directories
@@ -63,6 +64,7 @@ PLUMBING_CODE_PATHS = {
     "analytics": str(PLUMBING_CODE_DIR / "analytics"),
     "embeddings": str(PLUMBING_CODE_DIR / "embeddings"),
     "optimizer": str(PLUMBING_CODE_DIR / "optimizer"),
+    "final_jpg": str(PLUMBING_CODE_DIR / "final_jpg"),
 }
 
 # URL CONFIGURATION
