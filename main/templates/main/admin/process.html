@@ -153,7 +153,7 @@
                 processPlumbingButton.disabled = true;
                 plumbingProcessStatus.innerHTML = '<div class="alert alert-info">Processing plumbing code data...</div>';
 
-                const response = await fetch('/admin/process-plumbing/', {
+                const response = await fetch('/process-plumbing/', {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,

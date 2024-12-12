@@ -20,7 +20,7 @@ urlpatterns = [
     path("process/start/", views.start_processing, name="start_processing"),
     path("batch_chapters/", views.view_batch_chapters, name="batch_chapters"),
     path("semantic_search/", views.semantic_search, name="semantic_search"),
-    path("admin/process-plumbing/", views.process_plumbing_data, name="process_plumbing"),
+    path("process-plumbing/", views.process_plumbing_data, name="process_plumbing"),
     # Password reset URLs
     path("password_reset/", auth_views.PasswordResetView.as_view(), name="password_reset"),
     path(

@@ -18,7 +18,7 @@ from django.contrib.auth.models import User
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 
-from .models import DocumentBatch, ProcessedDocument, ProcessedImage
+from .models import DocumentBatch, PlumbingDocument, ProcessedDocument, ProcessedImage
 from .utils.process_final_data import process_all_data
 
 logger = logging.getLogger(__name__)
@@ -301,7 +301,7 @@ def process_plumbing_data(request: HttpRequest) -> JsonResponse:
 
 @user_passes_test(is_staff_user)
 def view_batch_chapters(request: HttpRequest) -> HttpResponse:
-    """View processed chapters from the final JSON.
+    """View processed chapters from the database.
 
     Args:
         request: The HTTP request object.
@@ -309,50 +309,62 @@ def view_batch_chapters(request: HttpRequest) -> HttpResponse:
     Returns:
         The rendered batch chapters page.
     """
-    json_dir = os.path.join(settings.MEDIA_ROOT, "plumbing_code", "json_final")
-    chapters_data = []
-
     try:
-        # Get all JSON files in the directory
-        json_files = [f for f in os.listdir(json_dir) if f.endswith("_groq.json")]
+        # Get all documents for the current user
+        documents = PlumbingDocument.objects.filter(user=request.user).prefetch_related(
+            "images", "tables"
+        )
 
-        for json_file in json_files:
-            file_path = os.path.join(json_dir, json_file)
-            with open(file_path, "r") as f:
-                data = json.load(f)
+        chapters_data = []
+        for doc in documents:
+            # Get all images and tables for this document
+            images = doc.images.all().order_by("page_number")
+            tables = doc.tables.all().order_by("page_number")
 
-            # Get the base filename without _groq.json
-            base_name = json_file.replace("_groq.json", "")
+            # Create a dictionary of pages with their associated data
+            pages = {}
+            for img in images:
+                pages[img.page_number] = {
+                    "page_number": img.page_number,
+                    "image_url": img.image.url if img.image else None,
+                    "table_content": None,
+                    "text_content": "",
+                }
 
-            # Prepare pages data
-            pages = []
-            for i in range(1, len(data.get("f", [])) + 1):
-                page_image = f"{base_name}_{i}pg.jpg"
-                page_url = f"{settings.MEDIA_URL}plumbing_code/optimizer/{page_image}"
-                pages.append(
-                    {
-                        "number": i,
-                        "image_url": page_url,
-                        "thumbnail_url": page_url,
+            for table in tables:
+                if table.page_number in pages:
+                    pages[table.page_number]["table_content"] = table.csv_content
+                else:
+                    pages[table.page_number] = {
+                        "page_number": table.page_number,
+                        "image_url": None,
+                        "table_content": table.csv_content,
+                        "text_content": "",
                     }
-                )
+
+            # Add text content from JSON if available
+            if doc.json_content and "f" in doc.json_content:
+                for item in doc.json_content["f"]:
+                    page_num = item.get("i")
+                    if page_num and page_num in pages:
+                        pages[page_num]["text_content"] = item.get("t", "")
+
+            # Sort pages by page number
+            sorted_pages = [pages[num] for num in sorted(pages.keys())]
 
             chapter_data = {
-                "filename": base_name,
-                "pages": pages,
-                "json_url": f"{settings.MEDIA_URL}plumbing_code/json_final/{json_file}",
+                "filename": doc.title,
+                "pages": sorted_pages,
+                "json_url": f"/media/plumbing_code/json_final/{doc.title}.json",
             }
             chapters_data.append(chapter_data)
 
-        # Sort chapters by filename
-        chapters_data.sort(key=lambda x: x["filename"])
+        return render(request, "main/admin/chapters.html", {"chapters": chapters_data})
 
     except Exception as e:
-        logger.error(f"Error loading chapters: {str(e)}")
-        messages.error(request, f"Error loading chapters: {str(e)}")
-        chapters_data = []
-
-    return render(request, "main/admin/chapters.html", {"chapters": chapters_data})
+        logger.error(f"Error viewing chapters: {str(e)}")
+        messages.error(request, f"Error viewing chapters: {str(e)}")
+        return render(request, "main/admin/chapters.html", {"chapters": []})
 
 
 def logout_view(request: HttpRequest) -> HttpResponse:

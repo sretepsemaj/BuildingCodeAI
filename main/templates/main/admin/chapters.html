@@ -39,25 +39,65 @@
                                             <tr>
                                                 <th>Page</th>
                                                 <th>Image</th>
-                                                <th>Actions</th>
+                                                <th>Table</th>
+                                                <th>Text Preview</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {% for page in chapter.pages %}
                                             <tr>
-                                                <td>{{ page.number }}</td>
+                                                <td>{{ page.page_number }}</td>
                                                 <td>
-                                                    <img src="{{ page.thumbnail_url }}"
-                                                         alt="Page {{ page.number }}"
-                                                         class="img-thumbnail"
-                                                         style="max-height: 50px;">
+                                                    {% if page.image_url %}
+                                                        <a href="{{ page.image_url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                            View Image
+                                                        </a>
+                                                    {% else %}
+                                                        <span class="text-muted">No image</span>
+                                                    {% endif %}
                                                 </td>
                                                 <td>
-                                                    <a href="{{ page.image_url }}"
-                                                       target="_blank"
-                                                       class="btn btn-sm btn-primary">
-                                                        View Full Image
-                                                    </a>
+                                                    {% if page.table_content %}
+                                                        <button class="btn btn-sm btn-outline-info"
+                                                                data-bs-toggle="modal"
+                                                                data-bs-target="#tableModal{{ chapter.filename|slugify }}_{{ page.page_number }}">
+                                                            View Table
+                                                        </button>
+                                                        <!-- Table Modal -->
+                                                        <div class="modal fade" id="tableModal{{ chapter.filename|slugify }}_{{ page.page_number }}" tabindex="-1">
+                                                            <div class="modal-dialog modal-lg">
+                                                                <div class="modal-content">
+                                                                    <div class="modal-header">
+                                                                        <h5 class="modal-title">Table Content - Page {{ page.page_number }}</h5>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                                    </div>
+                                                                    <div class="modal-body">
+                                                                        <div class="table-responsive">
+                                                                            <pre class="bg-light p-3" style="white-space: pre-wrap;">{{ page.table_content }}</pre>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="modal-footer">
+                                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                                        <button type="button" class="btn btn-primary" onclick="downloadCSV('{{ page.table_content|escapejs }}', '{{ chapter.filename }}_{{ page.page_number }}.csv')">Download CSV</button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-muted">No table</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if page.text_content %}
+                                                        <button class="btn btn-sm btn-outline-secondary"
+                                                                data-bs-toggle="tooltip"
+                                                                data-bs-placement="top"
+                                                                title="{{ page.text_content|truncatechars:200 }}">
+                                                            Preview Text
+                                                        </button>
+                                                    {% else %}
+                                                        <span class="text-muted">No text</span>
+                                                    {% endif %}
                                                 </td>
                                             </tr>
                                             {% endfor %}
@@ -73,27 +113,35 @@
         </div>
     {% else %}
         <div class="alert alert-info">
-            <i class="fas fa-info-circle me-2"></i>
-            No processed chapters found. Upload and process some images first.
+            No processed chapters found. Please process some documents first.
         </div>
     {% endif %}
 </div>
+{% endblock %}
 
-<style>
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+function downloadCSV(csvContent, filename) {
+    // Create a blob from the CSV content
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+
+    // Append link to body, click it, and remove it
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
-.card-header {
-    border-bottom: 0;
-}
-.table {
-    margin-bottom: 0;
-}
-.img-thumbnail {
-    transition: transform 0.2s;
-}
-.img-thumbnail:hover {
-    transform: scale(1.1);
-}
-</style>
+</script>
 {% endblock %}
