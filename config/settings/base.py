@@ -61,6 +61,43 @@ DEBUG: bool = False
 ROOT_URLCONF: str = "config.urls"
 WSGI_APPLICATION: str = "config.wsgi.application"
 
+# DIRECTORY STRUCTURE CONFIGURATION
+# ------------------------------------------------------------------------------
+# Base directories
+STATIC_ROOT = BASE_DIR / "staticfiles"
+MEDIA_ROOT = BASE_DIR / "media"
+LOGS_DIR = BASE_DIR / "logs"
+
+# Create base directories
+STATIC_ROOT.mkdir(parents=True, exist_ok=True)
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Plumbing code directory configuration
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Plumbing code processing directories
+PLUMBING_CODE_DIRS = [
+    "uploads",
+    "ocr",
+    "original",
+    "tables",
+    "analytics",
+    "embeddings",
+    "json",
+    "json_final",
+    "json_processed",
+    "optimizer",
+]
+
+# Create plumbing code directories and paths
+PLUMBING_CODE_PATHS = {}
+for dir_name in PLUMBING_CODE_DIRS:
+    dir_path = PLUMBING_CODE_DIR / dir_name
+    dir_path.mkdir(parents=True, exist_ok=True)
+    PLUMBING_CODE_PATHS[dir_name] = str(dir_path)
+
 # APPLICATION CONFIGURATION
 # ------------------------------------------------------------------------------
 DJANGO_APPS: List[str] = [
@@ -132,7 +169,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # MEDIA CONFIGURATION
 # ------------------------------------------------------------------------------
-MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "media/"
 
 # STATIC FILES CONFIGURATION

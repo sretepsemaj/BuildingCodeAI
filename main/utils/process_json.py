@@ -14,12 +14,15 @@ from typing import Dict, List, Optional, Tuple
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
+# Get the Django settings module from environment variable or default to base
+DJANGO_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS_MODULE)
+
 # Django imports
 import django  # noqa: E402
 from django.conf import settings  # noqa: E402
 
 # Set up Django environment
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
 
 # Configure logger

@@ -14,7 +14,10 @@ from typing import Any, Dict, List, Optional
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+# Get the Django settings module from environment variable or default to base
+DJANGO_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS_MODULE)
+
 import django  # noqa: E402
 
 django.setup()

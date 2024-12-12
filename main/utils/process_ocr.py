@@ -22,8 +22,9 @@ from django.conf import settings  # noqa: E402
 from django.core.exceptions import ImproperlyConfigured  # noqa: E402
 from PIL import Image  # noqa: E402
 
-# Set up Django environment
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+# Get the Django settings module from environment variable or default to base
+DJANGO_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS_MODULE)
 django.setup()
 
 # Get logger from Django's configuration

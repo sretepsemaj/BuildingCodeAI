@@ -13,8 +13,11 @@ sys.path.append(str(BASE_DIR))
 # Django imports
 import django  # noqa: E402
 
+# Get the Django settings module from environment variable or default to base
+DJANGO_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS_MODULE)
+
 # Set up Django environment
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
 
 # Local imports
