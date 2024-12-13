@@ -88,8 +88,6 @@ PLUMBING_CODE_DIRS = [
     "json_final",
     "json_processed",
     "optimizer",
-    "final_jpg",
-    "final_csv",
 ]
 
 # Create plumbing code directories and paths

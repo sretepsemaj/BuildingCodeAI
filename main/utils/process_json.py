@@ -174,6 +174,12 @@ def main() -> bool:
         text_files = list(ocr_dir.glob("*.txt"))
         logger.info(f"Found {len(text_files)} text files to process")
 
+        if not text_files:
+            logger.info(
+                "No text files found to process - this is normal if OCR hasn't been run yet"
+            )
+            return True  # Return success since this is an expected state
+
         # Group files by chapter
         files_by_chapter = {}
         for file in text_files:

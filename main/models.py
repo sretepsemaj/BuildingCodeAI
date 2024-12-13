@@ -1,16 +1,26 @@
 """Models for the main application."""
 
+import logging
 import os
 import shutil
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, TypeVar, cast
 
-from django.conf import settings
-from django.contrib.auth.models import User
-from django.db import models
-from django.db.models.signals import post_delete, pre_delete
-from django.dispatch import receiver
+# Django settings configuration
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE", os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
+)
+
+from django.conf import settings  # noqa: E402
+from django.contrib.auth.models import User  # noqa: E402
+from django.db import models  # noqa: E402
+from django.db.models.signals import post_delete, pre_delete  # noqa: E402
+from django.dispatch import receiver  # noqa: E402
+
+# Get logger
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=models.Model)
 
@@ -262,6 +272,26 @@ def delete_image_files(
         print(f"Error deleting image files: {e}")
 
 
+def get_image_upload_path(instance, filename):
+    """Get the upload path for plumbing images."""
+    base_prefix = instance.document.title.split("_")[0].replace("CH", "ch")
+    new_filename = f"{base_prefix}_{instance.page_number}pg.jpg"
+    return f"plumbing_code/final_jpg/{new_filename}"
+
+
+def get_csv_upload_path(instance, filename):
+    """Get the upload path for plumbing tables."""
+    try:
+        # Get the path from settings or use a default
+        tables_path = getattr(settings, "PLUMBING_CODE_PATHS", {}).get(
+            "tables", "plumbing_code/tables"
+        )
+        return str(Path(tables_path) / filename)
+    except Exception as e:
+        logger.error("Error getting CSV upload path: %s", str(e))
+        return str(Path("plumbing_code/tables") / filename)
+
+
 class PlumbingDocument(models.Model):
     """Main document model that holds the chapter information"""
 
@@ -283,31 +313,28 @@ class PlumbingDocument(models.Model):
 
 
 class PlumbingImage(models.Model):
-    """Model to store images from the final_jpg directory"""
+    """Model to store images from the final_jpg directory."""
 
     document = models.ForeignKey(PlumbingDocument, on_delete=models.CASCADE, related_name="images")
     page_number = models.IntegerField()
-    image = models.ImageField(upload_to="plumbing_code/final_jpg/")
+    image = models.ImageField(upload_to=get_image_upload_path)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         """Model metadata for PlumbingImage."""
 
-        verbose_name = "Plumbing Image"
-        verbose_name_plural = "Plumbing Images"
-        ordering = ["document", "page_number"]
-
-    def __str__(self):
-        return f"{self.document.title} - Page {self.page_number}"
+        unique_together = ("document", "page_number")
+        ordering = ["page_number"]
 
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
         """Override delete to ensure image file is cleaned up."""
         if self.image:
-            try:
-                self.image.delete()
-            except Exception as e:
-                print(f"Error deleting image file: {e}")
-        return super().delete(*args, **kwargs)
+            self.image.delete(save=False)
+        super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.document.title} - Page {self.page_number}"
 
 
 class PlumbingTable(models.Model):
@@ -315,18 +342,40 @@ class PlumbingTable(models.Model):
 
     document = models.ForeignKey(PlumbingDocument, on_delete=models.CASCADE, related_name="tables")
     page_number = models.IntegerField()
-    csv_content = models.TextField()  # Store CSV content as text
+    csv_file = models.FileField(upload_to=get_csv_upload_path, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        """Ensure the upload directory exists before saving."""
+        if not self.id and not self.csv_file:
+            # This is a new instance without a file
+            # Create the directory if it doesn't exist
+            upload_dir = os.path.join(settings.MEDIA_ROOT, "plumbing_code", "final_csv")
+            os.makedirs(upload_dir, exist_ok=True)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
+        """Override delete to ensure CSV file is cleaned up."""
+        if self.csv_file:
+            try:
+                # Delete the file from storage
+                self.csv_file.delete(save=False)
+            except Exception as e:
+                print(f"Error deleting CSV file: {e}")
+        return super().delete(*args, **kwargs)
+
+    def __str__(self) -> str:
+        """Return a string representation of the table."""
+        return f"Table {self.page_number} from {self.document.title}"
 
     class Meta:
-        """Model metadata for PlumbingTable."""
+        """Model metadata."""
 
         verbose_name = "Plumbing Table"
         verbose_name_plural = "Plumbing Tables"
         ordering = ["document", "page_number"]
-
-    def __str__(self):
-        return f"{self.document.title} - Table Page {self.page_number}"
+        unique_together = ("document", "page_number")
 
 
 @receiver(pre_delete, sender=PlumbingImage)

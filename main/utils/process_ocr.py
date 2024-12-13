@@ -1,4 +1,5 @@
-"""Script to process images with OCR and detect tables."""
+#!/usr/bin/env python3
+"""Process OCR module for handling OCR operations."""
 
 import logging
 import os
@@ -7,28 +8,58 @@ import shutil
 import sys
 from pathlib import Path
 from statistics import mean, stdev
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-# Add the project root to the Python path before importing Django
+import django
+import pytesseract
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
+from django.core.files.base import ContentFile
+from PIL import Image
+
+# Django settings configuration
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(BASE_DIR))
+os.environ.setdefault(
+    "DJANGO_SETTINGS_MODULE",
+    os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base"),
+)
 
-# Django imports
-import django  # noqa: E402
-
-# Third-party imports
-import pytesseract  # noqa: E402
-from django.conf import settings  # noqa: E402
-from django.core.exceptions import ImproperlyConfigured  # noqa: E402
-from PIL import Image  # noqa: E402
-
-# Get the Django settings module from environment variable or default to base
-DJANGO_SETTINGS_MODULE = os.getenv("DJANGO_SETTINGS_MODULE", "config.settings.base")
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", DJANGO_SETTINGS_MODULE)
 django.setup()
 
 # Get logger from Django's configuration
 logger = logging.getLogger("main.utils.process_ocr")
+
+# Set up logging if not already configured
+if not logger.handlers:
+    # Use settings for directory paths
+    try:
+        logs_dir = settings.LOGS_DIR
+    except AttributeError:
+        # Fallback to default logs directory
+        logs_dir = BASE_DIR / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
+    # Add file handler
+    file_handler = logging.handlers.RotatingFileHandler(
+        filename=logs_dir / "process_ocr.log",
+        maxBytes=10485760,  # 10MB
+        backupCount=3,
+        encoding="utf-8",
+    )
+    formatter = logging.Formatter(
+        "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
+        style="{",
+    )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Add console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    logger.setLevel(logging.INFO)
 
 
 def analyze_text_patterns(text: str) -> Tuple[bool, float]:
@@ -89,6 +120,11 @@ def process_tables(text: str, image_path: str, tables_dir: str) -> Dict:
     logger.info(f"Processing tables for image: {image_path}")
 
     try:
+        # Ensure tables directory exists
+        if not os.path.exists(tables_dir):
+            os.makedirs(tables_dir)
+            logger.info(f"Created tables directory: {tables_dir}")
+
         # Analyze text patterns
         is_table, confidence = analyze_text_patterns(text)
 
@@ -102,10 +138,6 @@ def process_tables(text: str, image_path: str, tables_dir: str) -> Dict:
                 "confidence": confidence,
             }
 
-        # Save table text to CSV
-        base_name = os.path.splitext(os.path.basename(image_path))[0]
-        table_path = os.path.join(tables_dir, f"{base_name}.csv")
-
         # Convert text to CSV format
         csv_lines = []
         for line in text.split("\n"):
@@ -114,18 +146,57 @@ def process_tables(text: str, image_path: str, tables_dir: str) -> Dict:
                 csv_line = re.sub(r"\s{2,}", ",", line.strip())
                 csv_lines.append(csv_line)
 
-        # Write CSV file
-        with open(table_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(csv_lines))
+        # Create CSV content
+        csv_content = "\n".join(csv_lines)
 
-        logger.info(f"Table saved to CSV: {table_path}")
-        return {
-            "success": True,
-            "table_path": table_path,
-            "df_path": None,
-            "error": None,
-            "confidence": confidence,
-        }
+        try:
+            # Get base name for the file
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+
+            # Extract document title and page number from filename
+            match = re.search(r"(.+?)_(\d+)pg", base_name)
+            if not match:
+                raise ValueError(f"Invalid filename format: {base_name}")
+
+            doc_title = match.group(1)
+            page_number = int(match.group(2))
+
+            # Get or create the document
+            from main.models import PlumbingDocument, PlumbingImage, PlumbingTable
+
+            doc, _ = PlumbingDocument.objects.get_or_create(title=doc_title)
+
+            # Create or update the table
+            table, created = PlumbingTable.objects.get_or_create(
+                document=doc,
+                page_number=page_number,
+            )
+
+            # Generate filename for CSV
+            base_prefix = doc_title.split("_")[0].replace("CH", "ch")
+            csv_filename = f"{base_prefix}_{page_number}pg.csv"
+
+            # Save the CSV content to the model
+            table.csv_file.save(csv_filename, ContentFile(csv_content.encode("utf-8")), save=True)
+
+            logger.info(f"Table saved to database: {table}")
+            return {
+                "success": True,
+                "table_path": table.csv_file.path if table.csv_file else None,
+                "df_path": None,
+                "error": None,
+                "confidence": confidence,
+            }
+
+        except (ValueError, AttributeError, IndexError) as e:
+            logger.error(f"Error processing filename or database: {e}")
+            return {
+                "success": False,
+                "table_path": None,
+                "df_path": None,
+                "error": str(e),
+                "confidence": confidence,
+            }
 
     except Exception as e:
         logger.error(f"Error processing tables: {e}")
@@ -160,83 +231,116 @@ def process_image(image_path: str, output_path: str, tables_dir: str) -> Dict:
             # Process tables if text contains table-like patterns
             table_result = process_tables(text, image_path, tables_dir)
 
+            # Create or update PlumbingImage
+            base_name = os.path.splitext(os.path.basename(image_path))[0]
+            doc_title = "_".join(base_name.split("_")[:-1])  # Remove page number part
+            page_number = int(re.search(r"(\d+)pg", base_name).group(1))
+
+            # Get or create the document
+            from main.models import PlumbingDocument, PlumbingImage, PlumbingTable
+
+            doc, _ = PlumbingDocument.objects.get_or_create(title=doc_title)
+
+            # Create or update the image
+            plumbing_image, created = PlumbingImage.objects.get_or_create(
+                document=doc,
+                page_number=page_number,
+            )
+
+            # Generate filename for image
+            base_prefix = doc_title.split("_")[0].replace("CH", "ch")
+            image_filename = f"{base_prefix}_{page_number}pg.jpg"
+
+            # Save the image file
+            with open(image_path, "rb") as img_file:
+                plumbing_image.image.save(
+                    image_filename,
+                    ContentFile(img_file.read()),
+                    save=True,  # Provide the filename
+                )
+
             return {
                 "success": True,
                 "text_path": text_path,
                 "table_result": table_result,
                 "error": None,
+                "image_path": (plumbing_image.image.path if plumbing_image.image else None),
             }
 
     except Exception as e:
-        logger.error(f"Error processing image: {e}")
+        logger.error("Error processing image %s: %s", image_path, str(e))
         return {
             "success": False,
             "text_path": None,
             "table_result": None,
             "error": str(e),
+            "image_path": None,
         }
 
 
-def main():
-    """Process images from uploads directory, save OCR results, and detect tables."""
-    logger.info("Starting OCR processing")
-
+def process_image(image_path: str) -> Dict[str, Any]:
+    """Process an image with OCR and detect tables."""
     try:
-        # Get paths from Django settings
-        paths = settings.PLUMBING_CODE_PATHS
-        uploads_dir = paths["uploads"]
-        ocr_dir = paths["ocr"]
-        tables_dir = paths["final_csv"]  # Changed from "tables" to "final_csv"
-        original_dir = paths["original"]
+        # Convert image to text using OCR
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image)
+
+        # Save text to file
+        text_path = image_path.replace(".jpg", ".txt")
+        with open(text_path, "w") as f:
+            f.write(text)
+
+        return {"success": True, "text_path": text_path, "error": None}
+
+    except Exception as e:
+        logger.error("Error processing image %s: %s", image_path, str(e))
+        return {"success": False, "text_path": None, "error": str(e)}
+
+
+def process_all_images():
+    """Process all images in the uploads directory."""
+    try:
+        # Get paths from settings
+        uploads_dir = str(settings.PLUMBING_CODE_PATHS["uploads"])
+        ocr_dir = str(settings.PLUMBING_CODE_PATHS["ocr"])
+        original_dir = str(settings.PLUMBING_CODE_PATHS["original"])
 
         # Get list of image files to process
-        files = [
+        image_files = [
             f
             for f in os.listdir(uploads_dir)
             if f.lower().endswith((".png", ".jpg", ".jpeg", ".tiff", ".bmp"))
         ]
-        logger.info(f"Found {len(files)} images to process")
 
-        # Process each file
-        successful = 0
-        failed = 0
+        if not image_files:
+            logger.info("No image files found in uploads directory")
+            return
 
-        for filename in files:
-            input_path = os.path.join(uploads_dir, filename)
-            output_path = os.path.join(ocr_dir, filename)
+        logger.info("Found %d images to process", len(image_files))
 
-            try:
-                # Process the image
-                result = process_image(input_path, output_path, tables_dir)
+        for image_file in image_files:
+            image_path = os.path.join(uploads_dir, image_file)
+            result = process_image(image_path)
 
-                if result["success"]:
-                    # Move original to original directory
-                    original_path = os.path.join(original_dir, filename)
-                    shutil.move(input_path, original_path)
-                    logger.info(f"Moved original file to: {original_path}")
-
-                    # Log table detection results
-                    if result["table_result"]["table_path"]:
-                        logger.info(
-                            f"Table detected in {filename} "
-                            f"(confidence: {result['table_result']['confidence']:.2f})"
-                        )
-
-                    successful += 1
-                else:
-                    logger.error(f"Failed to process {filename}: {result['error']}")
-                    failed += 1
-
-            except Exception as e:
-                logger.error(f"Error processing {filename}: {e}")
-                failed += 1
-                continue
-
-        logger.info(f"OCR processing complete. Successful: {successful}, Failed: {failed}")
+            if result["success"]:
+                # Move processed image to original directory
+                shutil.move(image_path, os.path.join(original_dir, image_file))
+                logger.info("Successfully processed %s", image_file)
+            else:
+                logger.error("Failed to process %s: %s", image_file, result["error"])
 
     except Exception as e:
-        logger.error(f"Error in main process: {e}")
-        sys.exit(1)
+        logger.error("Error processing images: %s", str(e))
+        raise
+
+
+def main():
+    """Process images from uploads directory, save OCR results, and detect tables."""
+    try:
+        logger.info("Starting OCR processing")
+        process_all_images()
+    except Exception as e:
+        logger.error("Error in main OCR processing: %s", str(e))
 
 
 if __name__ == "__main__":

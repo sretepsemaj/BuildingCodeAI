@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import List
 
 from .base import *  # noqa: F403
-from .paths import MEDIA_ROOT, PLUMBING_CODE_DIR, PLUMBING_CODE_PATHS
 
 # CORE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -30,13 +29,33 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # MEDIA CONFIGURATION
 # ------------------------------------------------------------------------------
-MEDIA_ROOT = MEDIA_ROOT
+MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_ROOT.mkdir(exist_ok=True)
 
 # PLUMBING CODE CONFIGURATION
 # ------------------------------------------------------------------------------
-PLUMBING_CODE_DIR = PLUMBING_CODE_DIR
-PLUMBING_CODE_PATHS = PLUMBING_CODE_PATHS
+PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
+PLUMBING_CODE_DIR.mkdir(exist_ok=True)
+
+# Define paths relative to MEDIA_ROOT to ensure proper file handling
+PLUMBING_CODE_PATHS = {
+    "images": PLUMBING_CODE_DIR / "images",
+    "uploads": PLUMBING_CODE_DIR / "uploads",
+    "ocr": PLUMBING_CODE_DIR / "ocr",
+    "original": PLUMBING_CODE_DIR / "original",
+    "tables": PLUMBING_CODE_DIR / "tables",  # Add tables directory
+    "final_csv": PLUMBING_CODE_DIR / "final_csv",
+    "analytics": PLUMBING_CODE_DIR / "analytics",
+    "embeddings": PLUMBING_CODE_DIR / "embeddings",
+    "json": PLUMBING_CODE_DIR / "json",
+    "json_final": PLUMBING_CODE_DIR / "json_final",
+    "json_processed": PLUMBING_CODE_DIR / "json_processed",
+    "optimizer": PLUMBING_CODE_DIR / "optimizer",
+}
+
+# Create all plumbing code directories
+for path in PLUMBING_CODE_PATHS.values():
+    path.mkdir(parents=True, exist_ok=True)
 
 # URL CONFIGURATION
 # ------------------------------------------------------------------------------
