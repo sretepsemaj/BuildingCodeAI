@@ -77,12 +77,11 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Plumbing code processing directories
+# Define all plumbing code directories
 PLUMBING_CODE_DIRS = [
     "uploads",
     "ocr",
     "original",
-    "tables",
     "analytics",
     "embeddings",
     "json",
@@ -90,6 +89,7 @@ PLUMBING_CODE_DIRS = [
     "json_processed",
     "optimizer",
     "final_jpg",
+    "final_csv",
 ]
 
 # Create plumbing code directories and paths

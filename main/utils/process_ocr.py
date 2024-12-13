@@ -186,7 +186,7 @@ def main():
         paths = settings.PLUMBING_CODE_PATHS
         uploads_dir = paths["uploads"]
         ocr_dir = paths["ocr"]
-        tables_dir = paths["tables"]
+        tables_dir = paths["final_csv"]  # Changed from "tables" to "final_csv"
         original_dir = paths["original"]
 
         # Get list of image files to process
