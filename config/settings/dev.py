@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List
 
 from .base import *  # noqa: F403
+from .paths import LOGS_DIR, MEDIA_ROOT, STATIC_ROOT  # Import paths from paths.py
 
 # CORE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -19,39 +20,25 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 # DIRECTORY STRUCTURE CONFIGURATION
 # ------------------------------------------------------------------------------
-# Base directories
-STATIC_ROOT = BASE_DIR / "staticfiles"
-LOGS_DIR = BASE_DIR / "logs"
+# Plumbing code processing directories
+PLUMBING_CODE_DIRS = [
+    "uploads",
+    "ocr",
+    "original",
+    "tables",
+    "analytics",
+    "embeddings",
+    "json",
+    "json_final",
+    "json_processed",
+    "optimizer",
+]
 
-# Create base directories
-STATIC_ROOT.mkdir(parents=True, exist_ok=True)
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-# MEDIA CONFIGURATION
-# ------------------------------------------------------------------------------
-MEDIA_ROOT = BASE_DIR / "media"
-MEDIA_ROOT.mkdir(exist_ok=True)
-
-# PLUMBING CODE CONFIGURATION
-# ------------------------------------------------------------------------------
+# Create paths dictionary for use in processing
 PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
 PLUMBING_CODE_DIR.mkdir(exist_ok=True)
 
-# Define paths relative to MEDIA_ROOT to ensure proper file handling
-PLUMBING_CODE_PATHS = {
-    "images": PLUMBING_CODE_DIR / "images",
-    "uploads": PLUMBING_CODE_DIR / "uploads",
-    "ocr": PLUMBING_CODE_DIR / "ocr",
-    "original": PLUMBING_CODE_DIR / "original",
-    "tables": PLUMBING_CODE_DIR / "tables",  # Add tables directory
-    "final_csv": PLUMBING_CODE_DIR / "final_csv",
-    "analytics": PLUMBING_CODE_DIR / "analytics",
-    "embeddings": PLUMBING_CODE_DIR / "embeddings",
-    "json": PLUMBING_CODE_DIR / "json",
-    "json_final": PLUMBING_CODE_DIR / "json_final",
-    "json_processed": PLUMBING_CODE_DIR / "json_processed",
-    "optimizer": PLUMBING_CODE_DIR / "optimizer",
-}
+PLUMBING_CODE_PATHS = {dirname: PLUMBING_CODE_DIR / dirname for dirname in PLUMBING_CODE_DIRS}
 
 # Create all plumbing code directories
 for path in PLUMBING_CODE_PATHS.values():

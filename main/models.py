@@ -22,72 +22,93 @@ from django.dispatch import receiver  # noqa: E402
 # Get logger
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=models.Model)
+
+class Chapter(models.Model):
+    """Represents a NYC Plumbing Code chapter."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    chapter_number = models.CharField(max_length=10)
+    code_type = models.CharField(max_length=10, default="NYCPC")
+    title = models.CharField(max_length=255)
+    content_json = models.FileField(upload_to="plumbing_code/json_final/", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        """Return a string representation of the Chapter."""
+        return f"{self.code_type} Chapter {self.chapter_number}: {self.title}"
+
+    @property
+    def json_filename(self):
+        """Generate the expected JSON filename."""
+        return f"NYCP{self.chapter_number}CH_groq.json"
+
+    class Meta:
+        """Meta options for Chapter model."""
+
+        ordering = ["chapter_number"]
+        verbose_name_plural = "Chapters"
+
+
+class ChapterPage(models.Model):
+    """Represents a single page within a chapter."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name="pages")
+    page_number = models.IntegerField()
+    text_content = models.TextField()
+    image_file = models.FileField(upload_to="plumbing_code/optimizer/")
+    table_file = models.FileField(upload_to="plumbing_code/tables/", null=True, blank=True)
+
+    def __str__(self):
+        """Return a string representation of the ChapterPage."""
+        return f"Chapter {self.chapter.chapter_number} - Page {self.page_number}"
+
+    @property
+    def image_filename(self):
+        """Generate the expected image filename."""
+        return f"NYCP{self.chapter.chapter_number}ch_{self.page_number}pg.jpg"
+
+    @property
+    def table_filename(self):
+        """Generate the expected table filename if this page has a table."""
+        if self.table_file:
+            return f"NYCP{self.chapter.chapter_number}ch_{self.page_number}pg.csv"
+        return None
+
+    class Meta:
+        """Meta options for ChapterPage model."""
+
+        unique_together = ["chapter", "page_number"]
+        ordering = ["chapter", "page_number"]
+        verbose_name_plural = "Chapter Pages"
 
 
 class DocumentBatch(models.Model):
-    """Represents a batch of processed documents."""
+    """Represents a batch of documents to be processed."""
 
-    id: models.UUIDField = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name: models.CharField = models.CharField(max_length=255)
-    user: models.ForeignKey = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="document_batches"
-    )
-    created_at: models.DateTimeField = models.DateTimeField(auto_now_add=True)
-    status: models.CharField = models.CharField(
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    status = models.CharField(
         max_length=20,
         choices=[
+            ("pending", "Pending"),
             ("processing", "Processing"),
             ("completed", "Completed"),
             ("failed", "Failed"),
         ],
-        default="processing",
+        default="pending",
     )
-    documents: models.Manager["ProcessedDocument"]  # Add type hint for the related manager
 
-    @property
-    def batch_directory(self) -> str:
-        """Get the directory path for this batch's files."""
-        return os.path.join(settings.MEDIA_ROOT, "indexes", "doc_classic", str(self.id))
-
-    def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
-        """Override delete to ensure all files are cleaned up."""
-        result: tuple[int, Dict[str, int]] = (0, {})
-
-        # Delete all associated documents first
-        for doc in self.documents.all():
-            if hasattr(doc, "original_file") and doc.original_file:
-                try:
-                    doc.original_file.delete()
-                except Exception as e:
-                    print(f"Error deleting original file: {e}")
-
-            if hasattr(doc, "text_file") and doc.text_file:
-                try:
-                    doc.text_file.delete()
-                except Exception as e:
-                    print(f"Error deleting text file: {e}")
-
-        # Delete the batch directory if it exists
-        batch_dir = self.batch_directory
-        if os.path.exists(batch_dir):
-            try:
-                shutil.rmtree(batch_dir)
-            except Exception as e:
-                print(f"Error deleting batch directory: {e}")
-
-        # Call the parent delete method
-        result = super().delete(*args, **kwargs)
-        return result
-
-    def __str__(self) -> str:
-        """String representation of the batch."""
-        return f"Batch {self.id} ({self.status})"
+    def __str__(self):
+        """Return a string representation of the DocumentBatch."""
+        return f"Batch {self.id} by {self.user.username} ({self.status})"
 
     class Meta:
-        """Model metadata for DocumentBatch."""
+        """Meta options for DocumentBatch model."""
 
-        ordering = ["-created_at"]
         verbose_name_plural = "Document Batches"
 
 
@@ -177,22 +198,19 @@ class ProcessedImage(models.Model):
     """Represents a processed image with analysis results."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="processed_images")
-    original_file = models.FileField(upload_to="images/original/")
-    processed_file = models.FileField(upload_to="images/processed/", null=True, blank=True)
-    analysis_result = models.JSONField(null=True, blank=True)
-    status = models.CharField(
-        max_length=20,
-        choices=[
-            ("processing", "Processing"),
-            ("completed", "Completed"),
-            ("failed", "Failed"),
-        ],
-        default="processing",
+    document = models.ForeignKey(
+        ProcessedDocument, on_delete=models.CASCADE, related_name="images", null=True, blank=True
     )
-    error_message = models.TextField(null=True, blank=True)
+    image_file = models.FileField(upload_to="processed_images/", null=True, blank=True)
+    page_number = models.IntegerField(null=True, blank=True, default=1)
+    ocr_text = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        """Return a string representation of the ProcessedImage."""
+        doc_name = self.document.filename if self.document else "Unknown Document"
+        return f"Page {self.page_number or 'Unknown'} of {doc_name}"
 
     class Meta:
         """Model metadata for ProcessedImage."""
@@ -203,17 +221,14 @@ class ProcessedImage(models.Model):
 
     def __str__(self):
         """Return a string representation of the processed image."""
-        return f"{self.original_file.name} ({self.status})"
+        return f"{self.image_file.name} ({self.status})"
 
     def delete(self, *args: Any, **kwargs: Any) -> tuple[int, Dict[str, int]]:
         """Override delete to ensure all files are cleaned up."""
         # Delete the physical files
-        if self.original_file:
-            if os.path.exists(self.original_file.path):
-                os.remove(self.original_file.path)
-        if self.processed_file:
-            if os.path.exists(self.processed_file.path):
-                os.remove(self.processed_file.path)
+        if self.image_file:
+            if os.path.exists(self.image_file.path):
+                os.remove(self.image_file.path)
 
         # Delete the model instance
         return super().delete(*args, **kwargs)
@@ -259,14 +274,9 @@ def delete_image_files(
     """Delete files associated with a processed image before deleting the image."""
     try:
         # Delete the original file if it exists
-        if instance.original_file:
-            if os.path.exists(instance.original_file.path):
-                os.remove(instance.original_file.path)
-
-        # Delete the processed file if it exists
-        if instance.processed_file:
-            if os.path.exists(instance.processed_file.path):
-                os.remove(instance.processed_file.path)
+        if instance.image_file:
+            if os.path.exists(instance.image_file.path):
+                os.remove(instance.image_file.path)
 
     except Exception as e:
         print(f"Error deleting image files: {e}")
