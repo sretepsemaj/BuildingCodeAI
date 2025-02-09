@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List
 
 from .base import *  # noqa: F403
+from .paths import LOGS_DIR, MEDIA_ROOT, STATIC_ROOT  # Import paths from paths.py
 
 # CORE CONFIGURATION
 # ------------------------------------------------------------------------------
@@ -19,20 +20,6 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
 
 # DIRECTORY STRUCTURE CONFIGURATION
 # ------------------------------------------------------------------------------
-# Base directories
-STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_ROOT = BASE_DIR / "media"
-LOGS_DIR = BASE_DIR / "logs"
-
-# Create base directories
-STATIC_ROOT.mkdir(parents=True, exist_ok=True)
-MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-# Create plumbing code directory
-PLUMBING_CODE_DIR = MEDIA_ROOT / "plumbing_code"
-PLUMBING_CODE_DIR.mkdir(parents=True, exist_ok=True)
-
 # Plumbing code processing directories
 PLUMBING_CODE_DIRS = [
     "uploads",
@@ -47,12 +34,10 @@ PLUMBING_CODE_DIRS = [
     "optimizer",
 ]
 
-# Create plumbing code directories
-for dir_name in PLUMBING_CODE_DIRS:
-    (PLUMBING_CODE_DIR / dir_name).mkdir(parents=True, exist_ok=True)
-
 # Create paths dictionary for use in processing
-PLUMBING_CODE_PATHS = {dirname: PLUMBING_CODE_DIR / dirname for dirname in PLUMBING_CODE_DIRS}
+PLUMBING_CODE_PATHS = {
+    dirname: MEDIA_ROOT / "plumbing_code" / dirname for dirname in PLUMBING_CODE_DIRS
+}
 
 # URL CONFIGURATION
 # ------------------------------------------------------------------------------

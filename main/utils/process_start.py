@@ -10,6 +10,9 @@ from typing import List, Optional
 import django
 from django.conf import settings
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent  # gets to BuildingCodeai/
+sys.path.append(str(BASE_DIR))  # adds BuildingCodeai/ to Python's search path
+
 # Set up Django environment first
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
 django.setup()
